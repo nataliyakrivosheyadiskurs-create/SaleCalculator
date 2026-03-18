@@ -1,0 +1,1728 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DISKURS — Калькулятор себестоимости</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #F5F4F0;
+  --surface:   #FFFFFF;
+  --surface2:  #EDECEA;
+  --border:    #DDDBD6;
+  --ink:       #1A1916;
+  --ink2:      #6B6860;
+  --ink3:      #A09E9A;
+  --accent:    #2B5CE6;
+  --accent-bg: #EEF2FD;
+  --green:     #1B8A5A;
+  --green-bg:  #E8F5EE;
+  --orange:    #C4570A;
+  --orange-bg: #FEF0E6;
+  --red:       #C02A2A;
+  --radius:    14px;
+  --radius-sm: 8px;
+}
+
+body {
+  font-family: 'Manrope', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ── LAYOUT ── */
+.app { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--ink);
+  color: #fff;
+  padding: 32px 24px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.main {
+  flex: 1;
+  padding: 40px 48px;
+  max-width: 820px;
+}
+
+@media (max-width: 860px) {
+  .app { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: static; padding: 24px; }
+  .main { padding: 24px 20px; }
+}
+
+/* ── SIDEBAR ── */
+.logo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 32px;
+}
+
+.sidebar-title {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.3;
+  margin-bottom: 8px;
+}
+
+.sidebar-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 32px;
+  line-height: 1.5;
+}
+
+.steps-nav { flex: 1; }
+
+.step-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  cursor: pointer;
+  transition: opacity 0.2s;
+  opacity: 0.4;
+}
+.step-nav-item.active { opacity: 1; }
+.step-nav-item.done { opacity: 0.6; }
+.step-nav-item.done .step-nav-num { background: var(--green); }
+
+.step-nav-num {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 700;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.step-nav-item.active .step-nav-num { background: var(--accent); }
+
+.step-nav-label { font-size: 13px; font-weight: 500; }
+
+/* Live price in sidebar */
+.live-price {
+  margin-top: 32px;
+  padding: 20px;
+  background: rgba(255,255,255,0.06);
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.live-price-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 8px;
+}
+.live-price-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px;
+  font-weight: 600;
+  color: #fff;
+  transition: color 0.3s;
+}
+.live-price-value.updated { color: #6EE7B7; }
+.live-price-note {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 4px;
+}
+
+.sheet-status {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+}
+.sheet-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+.sheet-dot.ok { background: #6EE7B7; }
+.sheet-dot.err { background: #F87171; }
+
+/* ── MAIN AREA ── */
+.step-page { display: none; animation: fadeUp 0.35s ease; }
+.step-page.active { display: block; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.step-tag {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 8px;
+}
+.step-heading {
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 800; line-height: 1.2;
+  margin-bottom: 8px;
+}
+.step-desc {
+  color: var(--ink2); font-size: 14px;
+  margin-bottom: 32px; max-width: 560px;
+}
+
+/* ── CARDS (single select) ── */
+.cards-grid { display: grid; gap: 10px; }
+.cards-grid.col2 { grid-template-columns: 1fr 1fr; }
+.cards-grid.col3 { grid-template-columns: repeat(3, 1fr); }
+
+@media (max-width: 600px) {
+  .cards-grid.col2, .cards-grid.col3 { grid-template-columns: 1fr; }
+}
+
+.card {
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+  user-select: none;
+}
+.card:hover { border-color: var(--accent); background: var(--accent-bg); }
+.card.selected {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.card.selected::after {
+  content: '✓';
+  position: absolute; top: 14px; right: 14px;
+  width: 20px; height: 20px;
+  background: var(--accent);
+  border-radius: 50%;
+  font-size: 10px; font-weight: 800; color: #fff;
+  display: grid; place-items: center;
+}
+.card-icon { font-size: 24px; margin-bottom: 10px; display: block; }
+.card-label { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.card-sub { font-size: 12px; color: var(--ink2); line-height: 1.4; }
+.card-badge {
+  display: inline-block; margin-top: 8px;
+  padding: 2px 8px; border-radius: 100px;
+  font-size: 11px; font-weight: 600;
+  background: var(--orange-bg); color: var(--orange);
+}
+
+/* ── TOGGLES ── */
+.toggles { display: flex; flex-direction: column; gap: 8px; }
+
+.toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.18s;
+  gap: 16px;
+}
+.toggle-row:hover { border-color: var(--accent); }
+.toggle-row.on { border-color: var(--accent); background: var(--accent-bg); }
+
+.toggle-left { display: flex; align-items: center; gap: 12px; flex: 1; }
+.toggle-emoji { font-size: 20px; flex-shrink: 0; }
+.toggle-label { font-size: 14px; font-weight: 600; }
+.toggle-sub { font-size: 12px; color: var(--ink2); margin-top: 1px; }
+
+.toggle-switch {
+  width: 40px; height: 22px;
+  background: var(--border);
+  border-radius: 11px;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.toggle-row.on .toggle-switch { background: var(--accent); }
+.toggle-switch::after {
+  content: '';
+  position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px;
+  border-radius: 50%; background: #fff;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-row.on .toggle-switch::after { transform: translateX(18px); }
+
+/* ── ЧИСЛА ── */
+.num-rows { display: flex; flex-direction: column; gap: 8px; }
+
+.num-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  gap: 16px;
+}
+.num-row.disabled { opacity: 0.35; pointer-events: none; }
+.num-left { flex: 1; }
+.num-label { font-size: 14px; font-weight: 600; }
+.num-sub { font-size: 12px; color: var(--ink2); margin-top: 1px; }
+.num-ctrl { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.num-btn {
+  width: 30px; height: 30px;
+  border-radius: var(--radius-sm);
+  border: none; background: var(--surface2);
+  color: var(--ink); font-size: 16px;
+  cursor: pointer; display: grid; place-items: center;
+  transition: background 0.15s;
+  font-weight: 600;
+}
+.num-btn:hover { background: var(--accent); color: #fff; }
+.num-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px; font-weight: 600;
+  min-width: 34px; text-align: center;
+}
+
+/* ── SECTION DIVIDER ── */
+.divider {
+  height: 1px; background: var(--border);
+  margin: 28px 0;
+}
+.section-label {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink3); margin-bottom: 12px;
+}
+
+/* ── УСЛОВНЫЙ БЛОК ── */
+.cond-block {
+  margin-top: 12px;
+  padding: 16px;
+  background: var(--surface2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  display: none;
+}
+.cond-block.visible { display: block; animation: fadeUp 0.25s ease; }
+
+/* ── HINT ── */
+.hint {
+  padding: 12px 16px;
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 13px; color: var(--ink2);
+  margin-bottom: 20px; line-height: 1.5;
+}
+.hint strong { color: var(--ink); }
+
+/* ── NAV BUTTONS ── */
+.nav-row {
+  display: flex; justify-content: space-between;
+  align-items: center; margin-top: 40px; gap: 12px;
+}
+.btn {
+  padding: 13px 28px;
+  border-radius: var(--radius);
+  font-family: 'Manrope', sans-serif;
+  font-size: 14px; font-weight: 700;
+  cursor: pointer; border: none;
+  transition: all 0.18s;
+}
+.btn-back {
+  background: var(--surface);
+  color: var(--ink2);
+  border: 2px solid var(--border);
+}
+.btn-back:hover { border-color: var(--ink2); color: var(--ink); }
+.btn-next {
+  background: var(--accent);
+  color: #fff; flex: 1; max-width: 200px;
+}
+.btn-next:hover { background: #1E4FCC; box-shadow: 0 4px 16px rgba(43,92,230,0.35); }
+.btn-calc {
+  background: var(--green);
+  color: #fff; flex: 1; max-width: 260px;
+  font-size: 15px;
+}
+.btn-calc:hover { background: #157A4E; box-shadow: 0 4px 16px rgba(27,138,90,0.35); }
+
+/* ── RESULT PAGE ── */
+.result-hero {
+  padding: 32px;
+  background: var(--ink);
+  border-radius: 20px;
+  color: #fff;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.result-hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 80% 20%, rgba(43,92,230,0.3), transparent 60%);
+}
+.result-hero-label {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: rgba(255,255,255,0.4); margin-bottom: 8px;
+  position: relative;
+}
+.result-hero-price {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(36px, 6vw, 52px);
+  font-weight: 600; line-height: 1;
+  position: relative;
+  margin-bottom: 6px;
+}
+.result-hero-note {
+  font-size: 13px; color: rgba(255,255,255,0.45);
+  position: relative;
+}
+
+.result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+@media (max-width: 600px) { .result-grid { grid-template-columns: 1fr; } }
+
+.result-card {
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+}
+.result-card-label {
+  font-size: 12px; color: var(--ink2);
+  margin-bottom: 4px; font-weight: 500;
+}
+.result-card-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px; font-weight: 600;
+}
+.result-card-hours {
+  font-size: 11px; color: var(--ink3); margin-top: 2px;
+}
+
+.breakdown {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.breakdown-header {
+  padding: 12px 18px;
+  background: var(--surface2);
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink2);
+  border-bottom: 1px solid var(--border);
+}
+.breakdown-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+.breakdown-row:last-child { border-bottom: none; }
+.breakdown-row.total {
+  background: var(--accent-bg);
+  font-weight: 700;
+}
+.breakdown-row-left { display: flex; align-items: center; gap: 8px; }
+.bd-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.bd-label { font-size: 13px; }
+.bd-hours { font-size: 11px; color: var(--ink3); margin-top: 1px; }
+.bd-amount {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px; font-weight: 600; flex-shrink: 0;
+}
+
+.flags-box {
+  padding: 16px 18px;
+  background: var(--orange-bg);
+  border: 1.5px solid rgba(196,87,10,0.25);
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+  display: none;
+}
+.flags-title {
+  font-size: 12px; font-weight: 700;
+  color: var(--orange); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.flag-item { font-size: 13px; color: var(--ink2); padding: 3px 0; display: flex; gap: 8px; }
+
+.result-actions { display: flex; gap: 10px; margin-top: 8px; }
+.btn-restart {
+  padding: 13px 20px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  color: var(--ink2);
+  font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all 0.18s;
+}
+.btn-restart:hover { border-color: var(--ink2); color: var(--ink); }
+.btn-copy {
+  flex: 1; padding: 13px 20px;
+  border-radius: var(--radius);
+  background: var(--accent); color: #fff;
+  font-size: 14px; font-weight: 700;
+  cursor: pointer; border: none; transition: all 0.18s;
+}
+.btn-copy:hover { background: #1E4FCC; }
+.btn-pdf {
+  padding: 13px 20px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  color: var(--ink);
+  font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all 0.18s;
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-pdf:hover { border-color: var(--red); color: var(--red); }
+
+/* PDF print styles */
+@media print {
+  .sidebar, .step-page:not(#stepResult), .result-actions, .nav-row { display: none !important; }
+  .app { display: block; }
+  .main { padding: 0; max-width: 100%; }
+  #stepResult { display: block !important; }
+  .result-hero { background: #1A1916 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: white; }
+  .pdf-header { display: block !important; }
+}
+.pdf-header {
+  display: none;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--border);
+}
+.pdf-header-logo { font-size: 13px; font-weight: 800; letter-spacing: 0.15em; color: var(--ink2); }
+.pdf-header-date { font-size: 12px; color: var(--ink3); margin-top: 2px; }
+
+/* Loading overlay */
+.loading {
+  position: fixed; inset: 0;
+  background: rgba(245,244,240,0.85);
+  display: grid; place-items: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+  display: none;
+}
+.loading.show { display: grid; }
+.loading-inner { text-align: center; }
+.loading-spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin: 0 auto 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 14px; color: var(--ink2); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loadingOverlay">
+  <div class="loading-inner">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">Загружаю настройки...</div>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside class="sidebar">
+    <div class="logo">DISKURS</div>
+    <div class="sidebar-title">Калькулятор себестоимости</div>
+    <div class="sidebar-sub">Для отдела продаж. Заполни опрос — получи минимальную цену проекта.</div>
+
+    <nav class="steps-nav" id="stepsNav">
+      <div class="step-nav-item active" data-step="0">
+        <div class="step-nav-num">1</div>
+        <div class="step-nav-label">Формат работы</div>
+      </div>
+      <div class="step-nav-item" data-step="1">
+        <div class="step-nav-num">2</div>
+        <div class="step-nav-label">Площадки и таргет</div>
+      </div>
+      <div class="step-nav-item" data-step="2">
+        <div class="step-nav-num">3</div>
+        <div class="step-nav-label">Контент</div>
+      </div>
+      <div class="step-nav-item" data-step="3">
+        <div class="step-nav-num">4</div>
+        <div class="step-nav-label">Продакшен</div>
+      </div>
+      <div class="step-nav-item" data-step="4">
+        <div class="step-nav-num">5</div>
+        <div class="step-nav-label">Доп. услуги</div>
+      </div>
+    </nav>
+
+    <div class="live-price">
+      <div class="live-price-label">Текущая оценка</div>
+      <div class="live-price-value" id="sidebarPrice">— ₸</div>
+      <div class="live-price-note">себестоимость / мес</div>
+    </div>
+
+    <div class="sheet-status">
+      <div class="sheet-dot" id="sheetDot"></div>
+      <span id="sheetStatus">Настройки не загружены</span>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN ═══ -->
+  <main class="main">
+
+    <!-- ── ШАГ 1: ФОРМАТ ── -->
+    <div class="step-page active" id="step0">
+      <div class="step-tag">Шаг 1 из 5</div>
+      <div class="step-heading">Формат работы</div>
+      <div class="step-desc">Какие услуги нужны клиенту? Можно выбрать несколько.</div>
+
+      <div class="cards-grid col3">
+        <div class="card selected" onclick="toggleFormat(this,'target')">
+          <span class="card-icon">🎯</span>
+          <div class="card-label">Таргет</div>
+          <div class="card-sub">Таргетированная реклама в Meta (Facebook / Instagram)</div>
+        </div>
+        <div class="card" onclick="toggleFormat(this,'content')">
+          <span class="card-icon">✍️</span>
+          <div class="card-label">Контент</div>
+          <div class="card-sub">SMM, посты, сторис, контент-план, ведение аккаунта</div>
+        </div>
+        <div class="card" onclick="toggleFormat(this,'complex')">
+          <span class="card-icon">⚡</span>
+          <div class="card-label">Комплекс</div>
+          <div class="card-sub">Таргет + контент + стратегия — всё вместе</div>
+        </div>
+      </div>
+
+      <div class="nav-row">
+        <div></div>
+        <button class="btn btn-next" onclick="goStep(1)">Далее →</button>
+      </div>
+    </div>
+
+    <!-- ── ШАГ 2: ПЛОЩАДКИ И ТАРГЕТ ── -->
+    <div class="step-page" id="step1">
+      <div class="step-tag">Шаг 2 из 5</div>
+      <div class="step-heading">Площадки и таргет</div>
+      <div class="step-desc">Настройки рекламы: где размещаемся, что делаем при старте.</div>
+
+      <div class="section-label">Рекламный аккаунт</div>
+      <div class="cards-grid">
+        <div class="card selected" onclick="selectOne(this,'adaccount','clean')">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <span style="font-size:22px">✅</span>
+            <div>
+              <div class="card-label">Аккаунт чистый, без блокировок</div>
+              <div class="card-sub">Запускаемся сразу — никаких доп. часов</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" onclick="selectOne(this,'adaccount','blocked')">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <span style="font-size:22px">⚠️</span>
+            <div>
+              <div class="card-label">Аккаунт есть, но были блокировки</div>
+              <div class="card-sub">Нужна дополнительная работа +1 ч</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" onclick="selectOne(this,'adaccount','new')">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <span style="font-size:22px">🆕</span>
+            <div>
+              <div class="card-label">Аккаунта нет / не запускали рекламу</div>
+              <div class="card-sub">Создаём с нуля, верификация +2 ч</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Дополнительные площадки</div>
+      <div class="toggles">
+        <div class="toggle-row" onclick="toggle(this,'tiktok')">
+          <div class="toggle-left">
+            <span class="toggle-emoji">🎵</span>
+            <div>
+              <div class="toggle-label">TikTok Ads</div>
+              <div class="toggle-sub">Отдельный рекламный кабинет +5 ч</div>
+            </div>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+        <div class="toggle-row" onclick="toggle(this,'context')">
+          <div class="toggle-left">
+            <span class="toggle-emoji">🔍</span>
+            <div>
+              <div class="toggle-label">Контекстная реклама (Google / Яндекс)</div>
+              <div class="toggle-sub">Ключи, тексты, кабинеты, аналитика, оптимизация</div>
+            </div>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Старт проекта (разовые работы)</div>
+      <div class="toggles">
+        <div class="toggle-row on" onclick="toggle(this,'competitor_analysis')">
+          <div class="toggle-left">
+            <span class="toggle-emoji">🔎</span>
+            <div>
+              <div class="toggle-label">Анализ конкурентов</div>
+              <div class="toggle-sub">Разовая работа при запуске — 1 ч</div>
+            </div>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+        <div class="toggle-row" onclick="toggle(this,'analytics')">
+          <div class="toggle-left">
+            <span class="toggle-emoji">📊</span>
+            <div>
+              <div class="toggle-label">Сквозная аналитика</div>
+              <div class="toggle-sub">Только если есть сайт/квиз <strong>и</strong> CRM — 4 ч</div>
+            </div>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+        <div id="analyticsSubBlock" class="cond-block">
+          <div class="section-label" style="margin-bottom:10px">Формат сквозной аналитики</div>
+          <div class="cards-grid col2">
+            <div class="card selected" onclick="selectOne(this,'analytics_type','basic')">
+              <div class="card-label">Базовая</div>
+              <div class="card-sub">Стандартная настройка, считается по часам (4 ч)</div>
+            </div>
+            <div class="card" onclick="selectOne(this,'analytics_type','dashboard')">
+              <div class="card-label">Дашборд</div>
+              <div class="card-sub">Расширенный вариант</div>
+              <div class="card-badge">+100 000 ₸ фиксировано</div>
+            </div>
+          </div>
+        </div>
+        <div class="toggle-row" onclick="toggle(this,'lang_kz')">
+          <div class="toggle-left">
+            <span class="toggle-emoji">🇰🇿</span>
+            <div>
+              <div class="toggle-label">Реклама на казахском языке</div>
+              <div class="toggle-sub">Дублирование кампаний на KZ +30 мин</div>
+            </div>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+        <div class="toggle-row" onclick="toggle(this,'crm')">
+          <div class="toggle-left">
+            <span class="toggle-emoji">🔗</span>
+            <div>
+              <div class="toggle-label">Базовая настройка CRM</div>
+              <div class="toggle-sub">Настройка CRM под аналитику +1 ч</div>
+            </div>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+      </div>
+
+      <div class="nav-row">
+        <button class="btn btn-back" onclick="goStep(0)">← Назад</button>
+        <button class="btn btn-next" onclick="goStep(2)">Далее →</button>
+      </div>
+    </div>
+
+    <!-- ── ШАГ 3: КОНТЕНТ ── -->
+    <div class="step-page" id="step2">
+      <div class="step-tag">Шаг 3 из 5</div>
+      <div class="step-heading">Контент</div>
+      <div class="step-desc">Сколько единиц контента делаем в месяц?</div>
+
+      <div class="hint">
+        <strong>Как считается:</strong> каждая единица контента автоматически тянет время контентщика (текст/сценарий), дизайнера (визуал) и проджекта (ТЗ, координация).
+      </div>
+
+      <div class="section-label">Таргет — рекламные креативы</div>
+      <div class="num-rows" id="creativesBlock">
+        <div class="num-row">
+          <div class="num-left">
+            <div class="num-label">🖼 Статичные креативы</div>
+            <div class="num-sub">Баннеры для таргетированной рекламы</div>
+          </div>
+          <div class="num-ctrl">
+            <button class="num-btn" onclick="dec('static_creatives')">−</button>
+            <div class="num-val" id="v_static_creatives">5</div>
+            <button class="num-btn" onclick="inc('static_creatives')">+</button>
+          </div>
+        </div>
+        <div class="num-row">
+          <div class="num-left">
+            <div class="num-label">🎬 Видеокреативы</div>
+            <div class="num-sub">Рилсы и видео для таргетированной рекламы</div>
+          </div>
+          <div class="num-ctrl">
+            <button class="num-btn" onclick="dec('video_creatives')">−</button>
+            <div class="num-val" id="v_video_creatives">12</div>
+            <button class="num-btn" onclick="inc('video_creatives')">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">SMM — органический контент</div>
+      <div class="num-rows" id="contentBlock">
+        <div class="num-row">
+          <div class="num-left">
+            <div class="num-label">📸 Посты (статика)</div>
+            <div class="num-sub">Публикации в ленту</div>
+          </div>
+          <div class="num-ctrl">
+            <button class="num-btn" onclick="dec('posts')">−</button>
+            <div class="num-val" id="v_posts">10</div>
+            <button class="num-btn" onclick="inc('posts')">+</button>
+          </div>
+        </div>
+        <div class="num-row">
+          <div class="num-left">
+            <div class="num-label">📱 Сторис (статика)</div>
+            <div class="num-sub">Статичные сторис для органики</div>
+          </div>
+          <div class="num-ctrl">
+            <button class="num-btn" onclick="dec('stories_static', 5)">−</button>
+            <div class="num-val" id="v_stories_static">60</div>
+            <button class="num-btn" onclick="inc('stories_static', 5)">+</button>
+          </div>
+        </div>
+        <div class="num-row">
+          <div class="num-left">
+            <div class="num-label">✨ Сторис (анимация)</div>
+            <div class="num-sub">Анимированные сторис — дороже в производстве</div>
+          </div>
+          <div class="num-ctrl">
+            <button class="num-btn" onclick="dec('stories_anim')">−</button>
+            <div class="num-val" id="v_stories_anim">0</div>
+            <button class="num-btn" onclick="inc('stories_anim')">+</button>
+          </div>
+        </div>
+        <div class="num-row">
+          <div class="num-left">
+            <div class="num-label">🎭 Видео для контента (рилсы)</div>
+            <div class="num-sub">Органические видеопубликации</div>
+          </div>
+          <div class="num-ctrl">
+            <button class="num-btn" onclick="dec('video_content')">−</button>
+            <div class="num-val" id="v_video_content">5</div>
+            <button class="num-btn" onclick="inc('video_content')">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Сценарии для видео (контент)</div>
+      <div class="cards-grid col3">
+        <div class="card selected" onclick="selectOne(this,'scenario_type','medium')">
+          <div class="card-label">Средние</div>
+          <div class="card-sub">Говорящая голова, стандартный формат — 50 мин/шт</div>
+        </div>
+        <div class="card" onclick="selectOne(this,'scenario_type','simple')">
+          <div class="card-label">Простые</div>
+          <div class="card-sub">Тренды, мемы, быстрые форматы — 20 мин/шт</div>
+        </div>
+        <div class="card" onclick="selectOne(this,'scenario_type','complex')">
+          <div class="card-label">Сложные</div>
+          <div class="card-sub">Динамичный монтаж, много локаций — 2 ч/шт</div>
+        </div>
+      </div>
+
+      <div class="nav-row">
+        <button class="btn btn-back" onclick="goStep(1)">← Назад</button>
+        <button class="btn btn-next" onclick="goStep(3)">Далее →</button>
+      </div>
+    </div>
+
+    <!-- ── ШАГ 4: ПРОДАКШЕН ── -->
+    <div class="step-page" id="step3">
+      <div class="step-tag">Шаг 4 из 5</div>
+      <div class="step-heading">Продакшен</div>
+      <div class="step-desc">Съёмки, монтаж, выезды.</div>
+
+      <div class="section-label">Формат съёмок</div>
+      <div class="cards-grid col2">
+        <div class="card selected" onclick="selectOne(this,'shooting','none')">
+          <span class="card-icon">🚫</span>
+          <div class="card-label">Без съёмок</div>
+          <div class="card-sub">Монтаж из исходников клиента или стоков</div>
+        </div>
+        <div class="card" onclick="selectOne(this,'shooting','office')">
+          <span class="card-icon">🏢</span>
+          <div class="card-label">Съёмки в офисе</div>
+          <div class="card-sub">Клиент приезжает к нам</div>
+        </div>
+        <div class="card" onclick="selectOne(this,'shooting','onsite')">
+          <span class="card-icon">🚗</span>
+          <div class="card-label">Выезд к клиенту</div>
+          <div class="card-sub">Оплачивается такси + время на дорогу</div>
+        </div>
+        <div class="card" onclick="selectOne(this,'shooting','complex')">
+          <span class="card-icon">🎬</span>
+          <div class="card-label">Крупная съёмка</div>
+          <div class="card-sub">Дроны, петлички, вспышки — отдельный расчёт</div>
+        </div>
+      </div>
+
+      <div id="shooterBlock" class="cond-block">
+        <div class="section-label" style="margin-bottom:10px">Кто снимает?</div>
+        <div class="cards-grid col2" style="margin-bottom:16px">
+          <div class="card selected" onclick="selectOne(this,'shooter','mobile')">
+            <span class="card-icon">📱</span>
+            <div class="card-label">Мобилограф</div>
+            <div class="card-sub">Съёмка на смартфон — 3 ч/день</div>
+          </div>
+          <div class="card" onclick="selectOne(this,'shooter','video')">
+            <span class="card-icon">🎥</span>
+            <div class="card-label">Видеограф</div>
+            <div class="card-sub">Профессиональная камера — 4 ч/день</div>
+          </div>
+        </div>
+        <div class="num-rows">
+          <div class="num-row">
+            <div class="num-left">
+              <div class="num-label">📅 Съёмочных дней в месяц</div>
+            </div>
+            <div class="num-ctrl">
+              <button class="num-btn" onclick="dec('shoot_days')">−</button>
+              <div class="num-val" id="v_shoot_days">2</div>
+              <button class="num-btn" onclick="inc('shoot_days')">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Сложность монтажа видеокреативов</div>
+      <div class="cards-grid col3">
+        <div class="card selected" onclick="selectOne(this,'montage_quality','good')">
+          <div class="card-label">Хорошие исходники</div>
+          <div class="card-sub">40 мин на 1 видеокреатив</div>
+        </div>
+        <div class="card" onclick="selectOne(this,'montage_quality','bad')">
+          <div class="card-label">Плохие исходники</div>
+          <div class="card-sub">Отбор кадров, работа со стоками — 1 ч</div>
+        </div>
+        <div class="card" onclick="selectOne(this,'montage_quality','complex')">
+          <div class="card-label">Сложный монтаж</div>
+          <div class="card-sub">Сценарный, многолокационный — 2.5 ч</div>
+        </div>
+      </div>
+
+      <div class="nav-row">
+        <button class="btn btn-back" onclick="goStep(2)">← Назад</button>
+        <button class="btn btn-next" onclick="goStep(4)">Далее →</button>
+      </div>
+    </div>
+
+    <!-- ── ШАГ 5: ДОП. УСЛУГИ ── -->
+    <div class="step-page" id="step4">
+      <div class="step-tag">Шаг 5 из 5</div>
+      <div class="step-heading">Дополнительные услуги</div>
+      <div class="step-desc">Выбери если клиенту нужно что-то сверх основного.</div>
+
+      <div class="toggles">
+        <div class="toggle-row" onclick="toggle(this,'ai_video')">
+          <div class="toggle-left">
+            <span class="toggle-emoji">🤖</span>
+            <div>
+              <div class="toggle-label">ИИ-ролики (нейросети, AI-видео)</div>
+              <div class="toggle-sub">Фиксированная стоимость +100 000 ₸</div>
+            </div>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+        <div class="toggle-row" onclick="toggle(this,'taplink')">
+          <div class="toggle-left">
+            <span class="toggle-emoji">🔗</span>
+            <div>
+              <div class="toggle-label">Таплинк (простой)</div>
+              <div class="toggle-sub">Страница-агрегатор ссылок — 4 ч проджекта</div>
+            </div>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+        <div class="toggle-row" onclick="toggle(this,'landing')">
+          <div class="toggle-left">
+            <span class="toggle-emoji">💻</span>
+            <div>
+              <div class="toggle-label">Лендинг на Tilda</div>
+              <div class="toggle-sub">8 ч работы проджекта</div>
+            </div>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+        <div class="toggle-row" onclick="toggle(this,'logo')">
+          <div class="toggle-left">
+            <span class="toggle-emoji">🎨</span>
+            <div>
+              <div class="toggle-label">Логотип / оформление аккаунта</div>
+              <div class="toggle-sub">Разработка дизайнером — 45 мин</div>
+            </div>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+        <div class="toggle-row" onclick="toggle(this,'giveaway')">
+          <div class="toggle-left">
+            <span class="toggle-emoji">🎁</span>
+            <div>
+              <div class="toggle-label">Розыгрыши / конкурсы</div>
+              <div class="toggle-sub">Организация и координация</div>
+            </div>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+      </div>
+
+      <div class="nav-row">
+        <button class="btn btn-back" onclick="goStep(3)">← Назад</button>
+        <button class="btn btn-calc" onclick="calculate()">🧮 Рассчитать стоимость</button>
+      </div>
+    </div>
+
+    <!-- ── РЕЗУЛЬТАТ ── -->
+    <div class="step-page" id="stepResult">
+      <div class="pdf-header">
+        <div class="pdf-header-logo">DISKURS — Калькулятор себестоимости</div>
+        <div class="pdf-header-date" id="pdfDate"></div>
+      </div>
+      <div class="step-tag">Расчёт готов</div>
+      <div class="step-heading">Себестоимость проекта</div>
+
+      <div class="result-hero">
+        <div class="result-hero-label">Минимальная цена продажи</div>
+        <div class="result-hero-price" id="r_minprice">—</div>
+        <div class="result-hero-note">тенге / месяц · с учётом маржи 15% и операционных расходов</div>
+      </div>
+
+      <div class="result-grid" id="r_summary"></div>
+
+      <div class="breakdown" id="r_breakdown">
+        <div class="breakdown-header">Разбивка по отделам</div>
+      </div>
+
+      <div class="flags-box" id="r_flags">
+        <div class="flags-title">⚠️ Обрати внимание</div>
+        <div id="r_flags_list"></div>
+      </div>
+
+      <div class="result-actions">
+        <button class="btn-restart" onclick="restart()">← Пересчитать</button>
+        <button class="btn-pdf" onclick="exportPDF()">📄 Скачать PDF</button>
+        <button class="btn-copy" onclick="copyResult()">📋 Скопировать</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// КОНФИГУРАЦИЯ
+// Замени SPREADSHEET_ID на ID своей Google Таблицы
+// ══════════════════════════════════════════════════════════
+const SPREADSHEET_ID = '1VCB7RgAhADrQImxezyfJ42TAVd6ft0WdCKZ1DIgZqI0';
+
+// Встроенные значения по умолчанию (используются если таблица недоступна)
+const DEFAULTS = {
+  rates: {
+    'Таргетолог': 5905,
+    'Контентщик': 4095,
+    'Дизайнер':   4254,
+    'Проджект':   6689,
+    'Мобилограф': 4556,
+    'Видеограф':  7143,
+  },
+  ops_per_project: Math.round(2170000 / 30), // ~72 333 ₸
+  margin: 0.15,
+  fixed: {
+    analytics_dashboard: 100000,
+    ai_video: 100000,
+  },
+  // Нормы в минутах (ID → минуты)
+  norms: {
+    T01:0, T02:60, T03:120,
+    T04:10, T05:30, T06:45, T07:60,
+    T08:30, T09:45, T10:300,
+    T11:60, T12:120, T13:60, T14:60, T15:90, T16:60, T17:60,
+    T18:60, T19:60, T20:60, T21:240,
+    D01:30, D02:40, D03:60, D04:150,
+    D05:30, D06:20, D07:45, D08:30, D09:10, D10:45, D11:60, D12:15,
+    C01:60, C02:12, C03:10, C04:10,
+    C05:20, C06:50, C07:120, C08:60, C09:10,
+    P01:40, P02:15, P03:20, P04:20,
+    P05:15, P06:3, P07:120,
+    P08:3, P09:10, P10:5, P11:5,
+    P12:10, P13:20, P14:40,
+    P15:30, P16:10, P17:60, P18:30, P19:10, P20:30,
+    PR01:240, PR02:180, PR03:60,
+    PR04:20, PR05:60, PR06:120, PR07:480,
+    PR08:30, PR09:15,
+  }
+};
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+const S = {
+  format: new Set(['target']),
+  adaccount: 'clean',
+  tiktok: false, context: false,
+  competitor_analysis: true,
+  analytics: false, analytics_type: 'basic',
+  lang_kz: false, crm: false,
+  static_creatives: 5, video_creatives: 12,
+  posts: 10, stories_static: 60, stories_anim: 0, video_content: 5,
+  scenario_type: 'medium',
+  shooting: 'none', shooter: 'mobile', shoot_days: 2,
+  montage_quality: 'good',
+  ai_video: false, taplink: false, landing: false, logo: false, giveaway: false,
+};
+
+let SETTINGS = null; // loaded from Sheets
+let currentStep = 0;
+
+// ══════════════════════════════════════════════════════════
+// LOAD SETTINGS FROM GOOGLE SHEETS
+// ══════════════════════════════════════════════════════════
+async function loadSettings() {
+  showLoading('Загружаю настройки из Google Таблицы...');
+  try {
+    const base = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=`;
+
+    const [ratesResp, normsResp, opsResp] = await Promise.all([
+      fetch(base + encodeURIComponent('Ставки сотрудников')),
+      fetch(base + encodeURIComponent('Нормы времени')),
+      fetch(base + encodeURIComponent('Операционные расходы')),
+    ]);
+
+    const parseGviz = async (resp) => {
+      const text = await resp.text();
+      const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+      return json.table;
+    };
+
+    const [ratesTable, normsTable, opsTable] = await Promise.all([
+      parseGviz(ratesResp),
+      parseGviz(normsResp),
+      parseGviz(opsResp),
+    ]);
+
+    const settings = { rates: {}, norms: {}, ops_per_project: DEFAULTS.ops_per_project, margin: DEFAULTS.margin, fixed: {...DEFAULTS.fixed} };
+
+    // Ставки: строки 3-8 (индекс 2-7), колонки A=роль E=ставка
+    ratesTable.rows.slice(2, 8).forEach(row => {
+      const role = row.c[0]?.v;
+      const rate = row.c[4]?.v;
+      if (role && rate) settings.rates[role] = Math.round(rate);
+    });
+
+    // Нормы: строки с ID в колонке A, минуты в колонке E
+    normsTable.rows.forEach(row => {
+      const id = row.c[0]?.v;
+      const mins = row.c[4]?.v;
+      if (id && mins !== null && mins !== undefined) settings.norms[id] = Number(mins);
+    });
+
+    // Операционные расходы: ищем строку с суммой (B6 примерно)
+    let totalOps = 0;
+    opsTable.rows.slice(2, 6).forEach(row => {
+      const name = String(row.c[0]?.v || '');
+      const val = row.c[1]?.v;
+      if (val && !name.toLowerCase().includes('итого') && !name.toLowerCase().includes('маржа')) {
+        totalOps += Number(val);
+      }
+      if (name.toLowerCase().includes('маржа') && val) {
+        settings.margin = Number(val);
+      }
+    });
+    if (totalOps > 0) {
+      const configResp = await fetch(base + encodeURIComponent('Конфигурация'));
+      const configTable = await parseGviz(configResp);
+      let numProjects = 30;
+      configTable.rows.slice(2, 7).forEach(row => {
+        const name = String(row.c[0]?.v || '').toLowerCase();
+        if (name.includes('проект') && row.c[1]?.v) numProjects = Number(row.c[1].v);
+      });
+      settings.ops_per_project = Math.round(totalOps / numProjects);
+    }
+
+    // Фиксированные стоимости из Операционных расходов (ищем нужные строки)
+    opsTable.rows.forEach(row => {
+      const name = String(row.c[0]?.v || '').toLowerCase();
+      const val = row.c[1]?.v;
+      if (!val) return;
+      if (name.includes('дашборд') || name.includes('dashboard')) {
+        settings.fixed.analytics_dashboard = Number(val);
+      }
+      if (name.includes('ии') || name.includes('нейросет') || name.includes('ai')) {
+        settings.fixed.ai_video = Number(val);
+      }
+    });
+
+    SETTINGS = settings;
+    setSheetStatus(true);
+  } catch (e) {
+    console.warn('Не удалось загрузить настройки из таблицы, используем встроенные значения.', e);
+    SETTINGS = { ...DEFAULTS };
+    setSheetStatus(false);
+  }
+  hideLoading();
+}
+
+function setSheetStatus(ok) {
+  document.getElementById('sheetDot').className = 'sheet-dot ' + (ok ? 'ok' : 'err');
+  document.getElementById('sheetStatus').textContent = ok ? 'Настройки из таблицы' : 'Встроенные настройки';
+}
+
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+
+// ══════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════
+function goStep(n) {
+  document.getElementById('step' + currentStep).classList.remove('active');
+  document.getElementById('stepResult').classList.remove('active');
+  currentStep = n;
+  document.getElementById('step' + n).classList.add('active');
+  updateStepsNav();
+  updateLivePrice();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updateStepsNav() {
+  document.querySelectorAll('.step-nav-item').forEach(el => {
+    const s = parseInt(el.dataset.step);
+    el.className = 'step-nav-item' + (s === currentStep ? ' active' : s < currentStep ? ' done' : '');
+  });
+}
+
+function restart() {
+  document.getElementById('stepResult').classList.remove('active');
+  goStep(0);
+}
+
+// ══════════════════════════════════════════════════════════
+// UI CONTROLS
+// ══════════════════════════════════════════════════════════
+function toggleFormat(card, val) {
+  if (card.classList.contains('selected') && S.format.size > 1) {
+    card.classList.remove('selected');
+    S.format.delete(val);
+  } else {
+    card.classList.add('selected');
+    S.format.add(val);
+  }
+  updateLivePrice();
+}
+
+function selectOne(card, key, val) {
+  card.parentElement.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  S[key] = val;
+  // Conditional blocks
+  if (key === 'shooting') {
+    const b = document.getElementById('shooterBlock');
+    b.className = 'cond-block' + (['office','onsite'].includes(val) ? ' visible' : '');
+  }
+  if (key === 'analytics_type') { /* nothing extra */ }
+  updateLivePrice();
+}
+
+function toggle(row, key) {
+  row.classList.toggle('on');
+  S[key] = row.classList.contains('on');
+  if (key === 'analytics') {
+    const b = document.getElementById('analyticsSubBlock');
+    b.className = 'cond-block' + (S.analytics ? ' visible' : '');
+  }
+  updateLivePrice();
+}
+
+function inc(key, step=1) { S[key] = (S[key]||0) + step; document.getElementById('v_'+key).textContent = S[key]; updateLivePrice(); }
+function dec(key, step=1) { S[key] = Math.max(0, (S[key]||0) - step); document.getElementById('v_'+key).textContent = S[key]; updateLivePrice(); }
+
+// ══════════════════════════════════════════════════════════
+// CALCULATION ENGINE
+// ══════════════════════════════════════════════════════════
+function calcCost() {
+  const cfg = SETTINGS || DEFAULTS;
+  const N = (id) => (cfg.norms[id] ?? DEFAULTS.norms[id] ?? 0) / 60; // minutes → hours
+  const R = (role) => cfg.rates[role] ?? DEFAULTS.rates[role] ?? 0;
+
+  const hasTarget  = S.format.has('target')  || S.format.has('complex');
+  const hasContent = S.format.has('content') || S.format.has('complex');
+
+  let h = { target: 0, content: 0, design: 0, project: 0, mobile: 0, video: 0 };
+  const flags = [];
+
+  // ── ТАРГЕТ ──────────────────────────────────────────────
+  if (hasTarget) {
+    // Рекламный аккаунт
+    if (S.adaccount === 'blocked') h.target += N('T02');
+    if (S.adaccount === 'new')     h.target += N('T03');
+
+    // Настройка + ТЗ на статичные креативы
+    h.target += S.static_creatives * (N('T04') + N('T05'));
+    // Настройка + ТЗ + сценарий на видеокреативы
+    h.target += S.video_creatives * (N('T04') + N('T06') + N('T07'));
+
+    // Язык
+    if (S.lang_kz) h.target += N('T08');
+
+    // TikTok
+    if (S.tiktok) h.target += N('T10');
+
+    // Контекст (все задачи T11–T17)
+    if (S.context) {
+      for (let i = 11; i <= 17; i++) h.target += N('T'+i);
+    }
+
+    // Аналитика
+    if (S.analytics) h.target += N('T21');
+    if (S.crm) h.target += N('T19');
+
+    // Анализ конкурентов при старте
+    if (S.competitor_analysis) h.target += N('T20');
+  }
+
+  // ── ДИЗАЙН — ТАРГЕТ ─────────────────────────────────────
+  if (hasTarget) {
+    // Статичные рекламные креативы
+    h.design += S.static_creatives * N('D01');
+
+    // Монтаж видеокреативов по качеству исходников
+    const montageNorm = S.montage_quality === 'good' ? N('D02') : S.montage_quality === 'bad' ? N('D03') : N('D04');
+    h.design += S.video_creatives * montageNorm;
+  }
+
+  // ── КОНТЕНТ ─────────────────────────────────────────────
+  if (hasContent) {
+    // Контент-план (раз в месяц)
+    h.content += N('C01');
+    h.content += N('C08'); // поиск референсов
+
+    // Посты: текст + ТЗ на визуал
+    h.content += S.posts * (N('C03') + N('C02'));
+
+    // Сторис: текст + ТЗ на визуал
+    const totalStories = S.stories_static + S.stories_anim;
+    h.content += totalStories * (N('C04') + N('C02'));
+
+    // Сценарии для видеоконтента
+    const scenNorm = S.scenario_type === 'simple' ? N('C05') : S.scenario_type === 'medium' ? N('C06') : N('C07');
+    h.content += S.video_content * scenNorm;
+
+    // Розыгрыш
+    if (S.giveaway) h.content += N('C09');
+  }
+
+  // ── ДИЗАЙН — КОНТЕНТ ────────────────────────────────────
+  if (hasContent) {
+    // Обложка для каждого поста
+    h.design += S.posts * N('D05');
+    // Статичные сторис
+    h.design += S.stories_static * N('D06');
+    // Анимированные сторис
+    h.design += S.stories_anim * N('D07');
+    // Монтаж видеоконтента (без сценария = простой)
+    h.design += S.video_content * N('D08');
+    // Логотип
+    if (S.logo) h.design += N('D10');
+  }
+
+  // ── ПРОДЖЕКТ ────────────────────────────────────────────
+  // Базовая коммуникация (на любом проекте)
+  h.project += N('P01');                    // созвон знакомство
+  h.project += N('P02') * 2;               // 2 созвона в месяц
+  h.project += N('P03');                    // итоговый созвон
+  h.project += N('P04') * 21;              // ежедневный чат × 21 день
+  h.project += N('P05') * 50;              // расстановка задач × 50
+
+  if (hasTarget) {
+    // Согласование ТЗ дизайнеру на каждый креатив
+    const totalCreatives = S.static_creatives + S.video_creatives;
+    h.project += totalCreatives * N('P06');
+    // Стратегия при таргете
+    h.project += N('P08') * 21;            // ежедневное отслеживание
+    h.project += S.video_creatives * N('P09'); // разработка офферов
+    h.project += S.video_creatives * N('P11'); // корректировка
+  }
+
+  if (hasContent) {
+    h.project += N('P07');                  // SMM-стратегия
+    h.project += S.posts * N('P10');       // корректировка контентного размещения
+  }
+
+  // Таплинк и лендинг
+  if (S.taplink) h.project += N('P15') * 0 + 4; // 4ч фиксировано
+  if (S.landing) h.project += 8;
+
+  // ── ПРОДАКШЕН ───────────────────────────────────────────
+  if (S.shooting !== 'none' && S.shooting !== 'complex') {
+    const shootNorm = S.shooter === 'video' ? N('PR01') : N('PR02');
+    const shooterKey = S.shooter === 'video' ? 'video' : 'mobile';
+    h[shooterKey] += S.shoot_days * shootNorm;
+
+    // Отбор кадров и выгрузка
+    h[shooterKey] += S.shoot_days * N('PR08');
+
+    // Цветокоррекция всего видео (контент + таргет)
+    const totalVideos = S.video_content + S.video_creatives;
+    h[shooterKey] += totalVideos * N('PR09');
+
+    // Такси при выезде
+    if (S.shooting === 'onsite') {
+      h.project += S.shoot_days * N('PR03') / 60; // такси как время ПМ
+    }
+
+    // Организация съёмок (проджект): P15–P20
+    const shootOrg = N('P15') + N('P16') + N('P17') + N('P18') + N('P19') + N('P20');
+    h.project += S.shoot_days * shootOrg;
+  }
+
+  if (S.shooting === 'complex') {
+    flags.push('Крупная съёмка — нужен отдельный расчёт у Гриши. Обязательно учти это в итоговой цене!');
+  }
+
+  // ── ФИКСИРОВАННЫЕ ДОПЛАТЫ ───────────────────────────────
+  let fixedExtra = 0;
+  if (S.analytics && S.analytics_type === 'dashboard') {
+    fixedExtra += cfg.fixed?.analytics_dashboard ?? DEFAULTS.fixed.analytics_dashboard;
+  }
+  if (S.ai_video) {
+    fixedExtra += cfg.fixed?.ai_video ?? DEFAULTS.fixed.ai_video;
+  }
+
+  // ── ИТОГО ───────────────────────────────────────────────
+  const cost = {
+    target:  Math.round(h.target  * R('Таргетолог')),
+    content: Math.round(h.content * R('Контентщик')),
+    design:  Math.round(h.design  * R('Дизайнер')),
+    project: Math.round(h.project * R('Проджект')),
+    mobile:  Math.round(h.mobile  * R('Мобилограф')),
+    video:   Math.round(h.video   * R('Видеограф')),
+  };
+
+  const laborTotal = Object.values(cost).reduce((a,b)=>a+b, 0);
+  const opsPerProject = cfg.ops_per_project ?? DEFAULTS.ops_per_project;
+  const totalCost = laborTotal + opsPerProject + fixedExtra;
+  const margin = cfg.margin ?? DEFAULTS.margin;
+  const minSalePrice = Math.ceil(totalCost / (1 - margin) / 1000) * 1000;
+  const totalHours = Object.values(h).reduce((a,b)=>a+b, 0);
+
+  return { h, cost, laborTotal, opsPerProject, fixedExtra, totalCost, minSalePrice, totalHours, margin, flags };
+}
+
+// ══════════════════════════════════════════════════════════
+// LIVE PRICE UPDATE (sidebar)
+// ══════════════════════════════════════════════════════════
+function updateLivePrice() {
+  if (!SETTINGS) return;
+  const { totalCost } = calcCost();
+  const el = document.getElementById('sidebarPrice');
+  el.textContent = totalCost.toLocaleString('ru-RU') + ' ₸';
+  el.classList.add('updated');
+  setTimeout(() => el.classList.remove('updated'), 600);
+}
+
+// ══════════════════════════════════════════════════════════
+// CALCULATE & RENDER RESULT
+// ══════════════════════════════════════════════════════════
+function calculate() {
+  const r = calcCost();
+
+  // Переходим на страницу результата
+  document.getElementById('step' + currentStep).classList.remove('active');
+  document.getElementById('stepResult').classList.add('active');
+  document.querySelectorAll('.step-nav-item').forEach(el => el.className = 'step-nav-item done');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Мин. цена
+  document.getElementById('r_minprice').textContent = r.minSalePrice.toLocaleString('ru-RU') + ' ₸';
+
+  // Саммари карточки
+  document.getElementById('r_summary').innerHTML = `
+    <div class="result-card">
+      <div class="result-card-label">Себестоимость (труд)</div>
+      <div class="result-card-val">${r.laborTotal.toLocaleString('ru-RU')} ₸</div>
+    </div>
+    <div class="result-card">
+      <div class="result-card-label">Операционные расходы</div>
+      <div class="result-card-val">${r.opsPerProject.toLocaleString('ru-RU')} ₸</div>
+    </div>
+    <div class="result-card">
+      <div class="result-card-label">Доп. услуги (фиксировано)</div>
+      <div class="result-card-val">${r.fixedExtra.toLocaleString('ru-RU')} ₸</div>
+    </div>
+    <div class="result-card">
+      <div class="result-card-label">Итого часов / месяц</div>
+      <div class="result-card-val">${r.totalHours.toFixed(0)} ч</div>
+    </div>
+  `;
+
+  // Разбивка по отделам
+  const DEPT_COLORS = {
+    'Таргет':    '#2B5CE6', 'Контент':  '#1B8A5A',
+    'Дизайн':   '#8B5CF6', 'Проджект': '#C4570A',
+    'Мобилограф':'#0891B2', 'Видеограф':'#DC2626',
+  };
+  const depts = [
+    { label: '🎯 Таргет',     key: 'target',  hours: r.h.target,  cost: r.cost.target,  role: 'Таргетолог' },
+    { label: '✍️ Контент',    key: 'content', hours: r.h.content, cost: r.cost.content, role: 'Контентщик' },
+    { label: '🎨 Дизайн',    key: 'design',  hours: r.h.design,  cost: r.cost.design,  role: 'Дизайнер'   },
+    { label: '📋 Проджект',   key: 'project', hours: r.h.project, cost: r.cost.project, role: 'Проджект'   },
+    { label: '📱 Мобилограф', key: 'mobile',  hours: r.h.mobile,  cost: r.cost.mobile,  role: 'Мобилограф' },
+    { label: '🎥 Видеограф',  key: 'video',   hours: r.h.video,   cost: r.cost.video,   role: 'Видеограф'  },
+  ];
+
+  let bdHTML = '';
+  depts.forEach(d => {
+    if (d.cost === 0) return;
+    const color = DEPT_COLORS[d.label.replace(/[^\wА-яЁё ]/g,'').trim().split(' ')[1]] || '#999';
+    bdHTML += `<div class="breakdown-row">
+      <div class="breakdown-row-left">
+        <div class="bd-dot" style="background:${Object.values(DEPT_COLORS)[depts.indexOf(d)%6]}"></div>
+        <div>
+          <div class="bd-label">${d.label}</div>
+          <div class="bd-hours">${d.hours.toFixed(1)} ч/мес</div>
+        </div>
+      </div>
+      <div class="bd-amount">${d.cost.toLocaleString('ru-RU')} ₸</div>
+    </div>`;
+  });
+  if (r.opsPerProject > 0) {
+    bdHTML += `<div class="breakdown-row">
+      <div class="breakdown-row-left">
+        <div class="bd-dot" style="background:#999"></div>
+        <div><div class="bd-label">🏢 Операционные расходы</div></div>
+      </div>
+      <div class="bd-amount">${r.opsPerProject.toLocaleString('ru-RU')} ₸</div>
+    </div>`;
+  }
+  if (r.fixedExtra > 0) {
+    bdHTML += `<div class="breakdown-row">
+      <div class="breakdown-row-left">
+        <div class="bd-dot" style="background:#EC4899"></div>
+        <div><div class="bd-label">✨ Фиксированные доплаты</div></div>
+      </div>
+      <div class="bd-amount">${r.fixedExtra.toLocaleString('ru-RU')} ₸</div>
+    </div>`;
+  }
+  bdHTML += `<div class="breakdown-row total">
+    <div class="breakdown-row-left">
+      <div class="bd-dot" style="background:var(--accent)"></div>
+      <div><div class="bd-label">Итого себестоимость</div></div>
+    </div>
+    <div class="bd-amount">${r.totalCost.toLocaleString('ru-RU')} ₸</div>
+  </div>`;
+
+  document.getElementById('r_breakdown').innerHTML =
+    '<div class="breakdown-header">Разбивка по отделам</div>' + bdHTML;
+
+  // Флаги
+  const flagsBox = document.getElementById('r_flags');
+  if (r.flags.length) {
+    document.getElementById('r_flags_list').innerHTML =
+      r.flags.map(f => `<div class="flag-item"><span>→</span><span>${f}</span></div>`).join('');
+    flagsBox.style.display = 'block';
+  } else {
+    flagsBox.style.display = 'none';
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// COPY RESULT
+// ══════════════════════════════════════════════════════════
+function copyResult() {
+  const r = calcCost();
+  let txt = `DISKURS — Расчёт себестоимости\n${'─'.repeat(40)}\n`;
+  txt += `Себестоимость (труд):     ${r.laborTotal.toLocaleString('ru-RU')} ₸\n`;
+  txt += `Операционные расходы:     ${r.opsPerProject.toLocaleString('ru-RU')} ₸\n`;
+  if (r.fixedExtra) txt += `Доп. услуги (фиксировано): ${r.fixedExtra.toLocaleString('ru-RU')} ₸\n`;
+  txt += `Итого себестоимость:      ${r.totalCost.toLocaleString('ru-RU')} ₸\n`;
+  txt += `${'─'.repeat(40)}\n`;
+  txt += `Мин. цена продажи:        ${r.minSalePrice.toLocaleString('ru-RU')} ₸/мес\n`;
+  txt += `Всего часов:              ${r.totalHours.toFixed(0)} ч/мес\n`;
+  navigator.clipboard.writeText(txt).then(() => {
+    const btn = document.querySelector('.btn-copy');
+    btn.textContent = '✅ Скопировано!';
+    setTimeout(() => btn.textContent = '📋 Скопировать итог', 2500);
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// EXPORT PDF
+// ══════════════════════════════════════════════════════════
+async function exportPDF() {
+  const btn = document.querySelector('.btn-pdf');
+  btn.textContent = '⏳ Генерирую...';
+  btn.disabled = true;
+
+  // Обновляем дату в шапке PDF
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+  document.getElementById('pdfDate').textContent = 'Дата расчёта: ' + dateStr;
+
+  // Собираем параметры расчёта для PDF
+  const r = calcCost();
+  const formatLabels = [...S.format].map(f => f === 'target' ? 'Таргет' : f === 'content' ? 'Контент' : 'Комплекс').join(' + ');
+
+  // Строим HTML для PDF
+  const pdfContent = document.createElement('div');
+  pdfContent.style.cssText = 'font-family: Arial, sans-serif; padding: 32px; max-width: 700px; color: #1A1916;';
+  pdfContent.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid #E0DDD8;">
+      <div>
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.15em; color:#A09E9A; text-transform:uppercase; margin-bottom:4px;">DISKURS</div>
+        <div style="font-size:22px; font-weight:800; line-height:1.2;">Расчёт себестоимости проекта</div>
+      </div>
+      <div style="text-align:right; font-size:12px; color:#6B6860;">${dateStr}</div>
+    </div>
+
+    <div style="background:#1A1916; border-radius:12px; padding:24px; margin-bottom:20px; color:#fff;">
+      <div style="font-size:10px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; color:rgba(255,255,255,0.4); margin-bottom:6px;">Минимальная цена продажи</div>
+      <div style="font-size:42px; font-weight:700; font-family:monospace; margin-bottom:4px;">${r.minSalePrice.toLocaleString('ru-RU')} ₸</div>
+      <div style="font-size:12px; color:rgba(255,255,255,0.4);">тенге / месяц · маржа ${Math.round(r.margin*100)}% · операционные расходы учтены</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px;">
+      ${[
+        ['Формат работы', formatLabels],
+        ['Себестоимость (труд)', r.laborTotal.toLocaleString('ru-RU') + ' ₸'],
+        ['Операционные расходы', r.opsPerProject.toLocaleString('ru-RU') + ' ₸'],
+        ['Итого себестоимость', r.totalCost.toLocaleString('ru-RU') + ' ₸'],
+        ['Доп. услуги (фиксировано)', r.fixedExtra ? r.fixedExtra.toLocaleString('ru-RU') + ' ₸' : '—'],
+        ['Всего часов / месяц', r.totalHours.toFixed(0) + ' ч'],
+      ].map(([l,v]) => `
+        <div style="padding:12px 14px; background:#F5F4F0; border-radius:8px; border:1px solid #DDDBD6;">
+          <div style="font-size:11px; color:#6B6860; margin-bottom:3px;">${l}</div>
+          <div style="font-size:15px; font-weight:700;">${v}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div style="background:#fff; border:1.5px solid #DDDBD6; border-radius:12px; overflow:hidden; margin-bottom:20px;">
+      <div style="padding:10px 16px; background:#EDECEA; font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#6B6860; border-bottom:1px solid #DDDBD6;">Разбивка по отделам</div>
+      ${(() => {
+        const depts = [
+          { label: 'Таргет',      hours: r.h.target,  cost: r.cost.target,  color: '#2B5CE6' },
+          { label: 'Контент',     hours: r.h.content, cost: r.cost.content, color: '#1B8A5A' },
+          { label: 'Дизайн',     hours: r.h.design,  cost: r.cost.design,  color: '#8B5CF6' },
+          { label: 'Проджект',    hours: r.h.project, cost: r.cost.project, color: '#C4570A' },
+          { label: 'Мобилограф',  hours: r.h.mobile,  cost: r.cost.mobile,  color: '#0891B2' },
+          { label: 'Видеограф',   hours: r.h.video,   cost: r.cost.video,   color: '#DC2626' },
+        ];
+        let rows = depts.filter(d => d.cost > 0).map(d => `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 16px; border-bottom:1px solid #EDECEA;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div style="width:7px;height:7px;border-radius:50%;background:${d.color};flex-shrink:0;"></div>
+              <div>
+                <div style="font-size:13px;">${d.label}</div>
+                <div style="font-size:10px;color:#A09E9A;">${d.hours.toFixed(1)} ч/мес</div>
+              </div>
+            </div>
+            <div style="font-size:13px;font-weight:700;font-family:monospace;">${d.cost.toLocaleString('ru-RU')} ₸</div>
+          </div>
+        `).join('');
+        if (r.opsPerProject > 0) rows += `
+          <div style="display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #EDECEA;">
+            <div style="font-size:13px;color:#6B6860;">Операционные расходы</div>
+            <div style="font-size:13px;font-weight:700;font-family:monospace;">${r.opsPerProject.toLocaleString('ru-RU')} ₸</div>
+          </div>`;
+        if (r.fixedExtra > 0) rows += `
+          <div style="display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #EDECEA;">
+            <div style="font-size:13px;color:#6B6860;">Доп. услуги (фиксировано)</div>
+            <div style="font-size:13px;font-weight:700;font-family:monospace;">${r.fixedExtra.toLocaleString('ru-RU')} ₸</div>
+          </div>`;
+        rows += `
+          <div style="display:flex;justify-content:space-between;padding:12px 16px;background:#EEF2FD;">
+            <div style="font-size:14px;font-weight:700;">Итого себестоимость</div>
+            <div style="font-size:14px;font-weight:700;font-family:monospace;">${r.totalCost.toLocaleString('ru-RU')} ₸</div>
+          </div>`;
+        return rows;
+      })()}
+    </div>
+
+    ${r.flags.length ? `
+    <div style="padding:14px 16px; background:#FEF0E6; border:1.5px solid rgba(196,87,10,0.25); border-radius:8px; margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:700;color:#C4570A;margin-bottom:6px;">⚠️ ОБРАТИ ВНИМАНИЕ</div>
+      ${r.flags.map(f => `<div style="font-size:13px;color:#6B6860;padding:2px 0;">→ ${f}</div>`).join('')}
+    </div>` : ''}
+
+    <div style="padding-top:16px;border-top:1px solid #DDDBD6;font-size:11px;color:#A09E9A;text-align:center;">
+      Расчёт сформирован автоматически калькулятором себестоимости DISKURS · ${dateStr}
+    </div>
+  `;
+
+  // Загружаем html2pdf если ещё не загружен
+  if (!window.html2pdf) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  const filename = `DISKURS_Расчет_${now.toLocaleDateString('ru-RU').replace(/\./g,'-')}.pdf`;
+
+  await html2pdf().set({
+    margin: 0,
+    filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: 'avoid-all' }
+  }).from(pdfContent).save();
+
+  btn.textContent = '✅ Готово!';
+  btn.disabled = false;
+  setTimeout(() => { btn.textContent = '📄 Скачать PDF'; }, 2500);
+}
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+loadSettings().then(() => updateLivePrice());
+</script>
+</body>
+</html>
