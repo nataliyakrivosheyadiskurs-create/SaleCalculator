@@ -168,6 +168,20 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
   .pdf-hdr{display:block!important}
 }
 .pdf-hdr { display:none; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid var(--border); }
+
+/* Цветные плашки-разделители */
+.dept-banner {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 20px; border-radius: var(--radius);
+  margin-bottom: 20px;
+}
+.dept-banner.target { background: #EEF2FD; border: 2px solid var(--accent); }
+.dept-banner.content { background: #E8F5EE; border: 2px solid var(--green); }
+.dept-banner-ico { font-size: 28px; flex-shrink: 0; }
+.dept-banner-title { font-size: 18px; font-weight: 800; line-height: 1.1; }
+.dept-banner.target .dept-banner-title { color: var(--accent); }
+.dept-banner.content .dept-banner-title { color: var(--green); }
+.dept-banner-sub { font-size: 13px; color: var(--ink2); margin-top: 3px; }
 </style>
 </head>
 <body>
@@ -183,9 +197,10 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
     <nav class="steps-nav" id="stepsNav">
       <div class="snav active" data-s="0"><div class="snav-num">1</div><div class="snav-label">Формат работы</div></div>
       <div class="snav" data-s="1"><div class="snav-num">2</div><div class="snav-label">Площадки и таргет</div></div>
-      <div class="snav" data-s="2"><div class="snav-num">3</div><div class="snav-label">Контент</div></div>
-      <div class="snav" data-s="3"><div class="snav-num">4</div><div class="snav-label">Продакшен</div></div>
-      <div class="snav" data-s="4"><div class="snav-num">5</div><div class="snav-label">Доп. услуги</div></div>
+      <div class="snav" data-s="2"><div class="snav-num">3</div><div class="snav-label">🎯 Объёмы таргета</div></div>
+      <div class="snav" data-s="3"><div class="snav-num">4</div><div class="snav-label">✍️ Объёмы контента</div></div>
+      <div class="snav" data-s="4"><div class="snav-num">5</div><div class="snav-label">Продакшен</div></div>
+      <div class="snav" data-s="5"><div class="snav-num">6</div><div class="snav-label">Доп. услуги</div></div>
     </nav>
     <div class="live-price">
       <div class="lp-label">Текущая оценка</div>
@@ -199,7 +214,7 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
 
     <!-- ШАГ 1: ФОРМАТ -->
     <div class="step-page active" id="step0">
-      <div class="step-tag">Шаг 1 из 5</div>
+      <div class="step-tag">Шаг 1 из 6</div>
       <div class="step-heading">Формат работы</div>
       <div class="step-desc">Какие услуги нужны клиенту? Можно выбрать несколько.</div>
       <div class="cards c3">
@@ -224,7 +239,7 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
 
     <!-- ШАГ 2: ПЛОЩАДКИ -->
     <div class="step-page" id="step1">
-      <div class="step-tag">Шаг 2 из 5</div>
+      <div class="step-tag">Шаг 2 из 6</div>
       <div class="step-heading">Площадки и таргет</div>
       <div class="step-desc">Настройки рекламы: где размещаемся, что делаем при старте.</div>
 
@@ -304,80 +319,46 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
       </div>
     </div>
 
-    <!-- ШАГ 3: КОНТЕНТ -->
+    <!-- ШАГ 3: ОБЪЁМЫ ТАРГЕТА -->
     <div class="step-page" id="step2">
-      <div class="step-tag">Шаг 3 из 5</div>
-      <div class="step-heading">Контент</div>
-      <div class="step-desc">Сколько единиц контента делаем в месяц?</div>
+      <div class="step-tag">Шаг 3 из 6</div>
+      <div class="step-heading">Объёмы работ</div>
 
-      <div class="hint"><strong>Как считается:</strong> каждая единица контента тянет время контентщика (текст / сценарий), дизайнера (визуал) и проджекта (ТЗ, координация).</div>
+      <div class="dept-banner target">
+        <div class="dept-banner-ico">🎯</div>
+        <div>
+          <div class="dept-banner-title">ТАРГЕТ — рекламные материалы</div>
+          <div class="dept-banner-sub">Всё что касается платной рекламы: креативы, объявления, сценарии для таргетолога</div>
+        </div>
+      </div>
 
-      <div class="sec-label">Таргет — рекламные креативы</div>
-      <div class="num-rows" id="creativesBlock">
+      <div class="sec-label">Рекламные креативы</div>
+      <div class="num-rows">
         <div class="num-row">
-          <div class="num-left"><div class="num-label">🖼 Статичные креативы</div><div class="num-sub">Баннеры для таргетированной рекламы</div></div>
+          <div class="num-left"><div class="num-label">🖼 Статичные креативы</div><div class="num-sub">Баннеры, изображения для рекламных объявлений</div></div>
           <div class="num-ctrl"><button class="nbtn" onclick="dec('static_creatives')">−</button><div class="nval" id="v_static_creatives">5</div><button class="nbtn" onclick="inc('static_creatives')">+</button></div>
         </div>
         <div class="num-row">
-          <div class="num-left"><div class="num-label">🎬 Видеокреативы</div><div class="num-sub">Рилсы и видео для таргетированной рекламы</div></div>
+          <div class="num-left"><div class="num-label">🎬 Видеокреативы</div><div class="num-sub">Рилсы и видеоролики для рекламных объявлений</div></div>
           <div class="num-ctrl"><button class="nbtn" onclick="dec('video_creatives')">−</button><div class="nval" id="v_video_creatives">12</div><button class="nbtn" onclick="inc('video_creatives')">+</button></div>
         </div>
       </div>
 
       <div class="divider"></div>
-      <div class="sec-label">Сценарии для видеокреативов (таргетолог)</div>
-      <div class="hint" style="margin-bottom:12px">Таргетолог пишет сценарии для рекламных видео. Укажи сколько штук каждого типа.</div>
+      <div class="sec-label">Сценарии для видеокреативов — пишет таргетолог</div>
+      <div class="hint" style="margin-bottom:12px">Укажи сколько сценариев каждого типа нужно написать для рекламных видео.</div>
       <div class="num-rows">
         <div class="num-row">
           <div class="num-left"><div class="num-label">Простые (тренд, мем) — 1 ч/шт</div><div class="num-sub">Быстрые форматы без сложной концепции</div></div>
           <div class="num-ctrl"><button class="nbtn" onclick="dec('scen_target_simple')">−</button><div class="nval" id="v_scen_target_simple">0</div><button class="nbtn" onclick="inc('scen_target_simple')">+</button></div>
         </div>
         <div class="num-row">
-          <div class="num-left"><div class="num-label">Средние (говорящая голова) — 1 ч/шт</div><div class="num-sub">Стандартный формат</div></div>
+          <div class="num-left"><div class="num-label">Средние (говорящая голова) — 1 ч/шт</div><div class="num-sub">Стандартный рекламный формат</div></div>
           <div class="num-ctrl"><button class="nbtn" onclick="dec('scen_target_med')">−</button><div class="nval" id="v_scen_target_med">5</div><button class="nbtn" onclick="inc('scen_target_med')">+</button></div>
         </div>
         <div class="num-row">
           <div class="num-left"><div class="num-label">Сложные (многолокационные) — 1 ч/шт</div><div class="num-sub">Динамичный монтаж, нестандартная концепция</div></div>
           <div class="num-ctrl"><button class="nbtn" onclick="dec('scen_target_hard')">−</button><div class="nval" id="v_scen_target_hard">0</div><button class="nbtn" onclick="inc('scen_target_hard')">+</button></div>
-        </div>
-      </div>
-
-      <div class="divider"></div>
-      <div class="sec-label">SMM — органический контент</div>
-      <div class="num-rows">
-        <div class="num-row">
-          <div class="num-left"><div class="num-label">📸 Посты (статика)</div><div class="num-sub">Публикации в ленту</div></div>
-          <div class="num-ctrl"><button class="nbtn" onclick="dec('posts')">−</button><div class="nval" id="v_posts">10</div><button class="nbtn" onclick="inc('posts')">+</button></div>
-        </div>
-        <div class="num-row">
-          <div class="num-left"><div class="num-label">📱 Сторис (статика)</div></div>
-          <div class="num-ctrl"><button class="nbtn" onclick="dec('stories_static',5)">−</button><div class="nval" id="v_stories_static">60</div><button class="nbtn" onclick="inc('stories_static',5)">+</button></div>
-        </div>
-        <div class="num-row">
-          <div class="num-left"><div class="num-label">✨ Сторис (анимация)</div><div class="num-sub">Дороже в производстве</div></div>
-          <div class="num-ctrl"><button class="nbtn" onclick="dec('stories_anim')">−</button><div class="nval" id="v_stories_anim">0</div><button class="nbtn" onclick="inc('stories_anim')">+</button></div>
-        </div>
-        <div class="num-row">
-          <div class="num-left"><div class="num-label">🎭 Видео для контента (рилсы)</div><div class="num-sub">Органические видеопубликации</div></div>
-          <div class="num-ctrl"><button class="nbtn" onclick="dec('video_content')">−</button><div class="nval" id="v_video_content">5</div><button class="nbtn" onclick="inc('video_content')">+</button></div>
-        </div>
-      </div>
-
-      <div class="divider"></div>
-      <div class="sec-label">Сценарии для органического видео (контентщик)</div>
-      <div class="hint" style="margin-bottom:12px">Контентщик пишет сценарии для органических рилсов и видеопостов. Укажи сколько штук каждого типа.</div>
-      <div class="num-rows">
-        <div class="num-row">
-          <div class="num-left"><div class="num-label">Простые (тренд) — 20 мин/шт</div></div>
-          <div class="num-ctrl"><button class="nbtn" onclick="dec('scen_content_simple')">−</button><div class="nval" id="v_scen_content_simple">0</div><button class="nbtn" onclick="inc('scen_content_simple')">+</button></div>
-        </div>
-        <div class="num-row">
-          <div class="num-left"><div class="num-label">Средние (говорящая голова) — 50 мин/шт</div></div>
-          <div class="num-ctrl"><button class="nbtn" onclick="dec('scen_content_med')">−</button><div class="nval" id="v_scen_content_med">5</div><button class="nbtn" onclick="inc('scen_content_med')">+</button></div>
-        </div>
-        <div class="num-row">
-          <div class="num-left"><div class="num-label">Сложные — 2 ч/шт</div></div>
-          <div class="num-ctrl"><button class="nbtn" onclick="dec('scen_content_hard')">−</button><div class="nval" id="v_scen_content_hard">0</div><button class="nbtn" onclick="inc('scen_content_hard')">+</button></div>
         </div>
       </div>
 
@@ -387,9 +368,66 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
       </div>
     </div>
 
-    <!-- ШАГ 4: ПРОДАКШЕН -->
+    <!-- ШАГ 4: ОБЪЁМЫ КОНТЕНТА -->
     <div class="step-page" id="step3">
-      <div class="step-tag">Шаг 4 из 5</div>
+      <div class="step-tag">Шаг 4 из 6</div>
+      <div class="step-heading">Объёмы работ</div>
+
+      <div class="dept-banner content">
+        <div class="dept-banner-ico">✍️</div>
+        <div>
+          <div class="dept-banner-title">КОНТЕНТ — органическое ведение</div>
+          <div class="dept-banner-sub">Всё что касается SMM: посты, сторис, рилсы, сценарии для контентщика</div>
+        </div>
+      </div>
+
+      <div class="sec-label">Публикации в месяц</div>
+      <div class="num-rows">
+        <div class="num-row">
+          <div class="num-left"><div class="num-label">📸 Посты (статика)</div><div class="num-sub">Публикации с фото или графикой в ленту</div></div>
+          <div class="num-ctrl"><button class="nbtn" onclick="dec('posts')">−</button><div class="nval" id="v_posts">10</div><button class="nbtn" onclick="inc('posts')">+</button></div>
+        </div>
+        <div class="num-row">
+          <div class="num-left"><div class="num-label">📱 Сторис (статика)</div><div class="num-sub">Статичные сторис для органического продвижения</div></div>
+          <div class="num-ctrl"><button class="nbtn" onclick="dec('stories_static',5)">−</button><div class="nval" id="v_stories_static">60</div><button class="nbtn" onclick="inc('stories_static',5)">+</button></div>
+        </div>
+        <div class="num-row">
+          <div class="num-left"><div class="num-label">✨ Сторис (анимация)</div><div class="num-sub">Анимированные сторис — дороже в производстве</div></div>
+          <div class="num-ctrl"><button class="nbtn" onclick="dec('stories_anim')">−</button><div class="nval" id="v_stories_anim">0</div><button class="nbtn" onclick="inc('stories_anim')">+</button></div>
+        </div>
+        <div class="num-row">
+          <div class="num-left"><div class="num-label">🎭 Видео для контента (рилсы)</div><div class="num-sub">Органические видеопубликации в ленту / рилсы</div></div>
+          <div class="num-ctrl"><button class="nbtn" onclick="dec('video_content')">−</button><div class="nval" id="v_video_content">5</div><button class="nbtn" onclick="inc('video_content')">+</button></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="sec-label">Сценарии для органического видео — пишет контентщик</div>
+      <div class="hint" style="margin-bottom:12px">Укажи сколько сценариев каждого типа нужно для органических рилсов и видеопостов.</div>
+      <div class="num-rows">
+        <div class="num-row">
+          <div class="num-left"><div class="num-label">Простые (тренд) — 20 мин/шт</div><div class="num-sub">Быстрые трендовые форматы</div></div>
+          <div class="num-ctrl"><button class="nbtn" onclick="dec('scen_content_simple')">−</button><div class="nval" id="v_scen_content_simple">0</div><button class="nbtn" onclick="inc('scen_content_simple')">+</button></div>
+        </div>
+        <div class="num-row">
+          <div class="num-left"><div class="num-label">Средние (говорящая голова) — 50 мин/шт</div><div class="num-sub">Стандартный разговорный формат</div></div>
+          <div class="num-ctrl"><button class="nbtn" onclick="dec('scen_content_med')">−</button><div class="nval" id="v_scen_content_med">5</div><button class="nbtn" onclick="inc('scen_content_med')">+</button></div>
+        </div>
+        <div class="num-row">
+          <div class="num-left"><div class="num-label">Сложные (динамичные) — 2 ч/шт</div><div class="num-sub">Многоплановые, нестандартные сценарии</div></div>
+          <div class="num-ctrl"><button class="nbtn" onclick="dec('scen_content_hard')">−</button><div class="nval" id="v_scen_content_hard">0</div><button class="nbtn" onclick="inc('scen_content_hard')">+</button></div>
+        </div>
+      </div>
+
+      <div class="nav-row">
+        <button class="btn btn-back" onclick="go(2)">← Назад</button>
+        <button class="btn btn-next" onclick="go(4)">Далее →</button>
+      </div>
+    </div>
+
+    <!-- ШАГ 5: ПРОДАКШЕН -->
+    <div class="step-page" id="step4">
+      <div class="step-tag">Шаг 5 из 6</div>
       <div class="step-heading">Продакшен</div>
       <div class="step-desc">Съёмки, монтаж, выезды. Можно выбрать мобилографа и видеографа одновременно.</div>
 
@@ -480,14 +518,14 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
       </div>
 
       <div class="nav-row">
-        <button class="btn btn-back" onclick="go(2)">← Назад</button>
-        <button class="btn btn-next" onclick="go(4)">Далее →</button>
+        <button class="btn btn-back" onclick="go(3)">← Назад</button>
+        <button class="btn btn-next" onclick="go(5)">Далее →</button>
       </div>
     </div>
 
-    <!-- ШАГ 5: ДОП. УСЛУГИ -->
-    <div class="step-page" id="step4">
-      <div class="step-tag">Шаг 5 из 5</div>
+    <!-- ШАГ 6: ДОП. УСЛУГИ -->
+    <div class="step-page" id="step5">
+      <div class="step-tag">Шаг 6 из 6</div>
       <div class="step-heading">Дополнительные услуги</div>
       <div class="step-desc">Выбери если клиенту нужно что-то сверх основного.</div>
       <div class="toggles">
@@ -513,7 +551,7 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
         </div>
       </div>
       <div class="nav-row">
-        <button class="btn btn-back" onclick="go(3)">← Назад</button>
+        <button class="btn btn-back" onclick="go(4)">← Назад</button>
         <button class="btn btn-calc" onclick="calculate()">🧮 Рассчитать стоимость</button>
       </div>
     </div>
