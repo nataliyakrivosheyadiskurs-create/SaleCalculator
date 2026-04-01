@@ -218,6 +218,21 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
       <div class="step-tag">Шаг 1 из 6</div>
       <div class="step-heading">Формат работы</div>
       <div class="step-desc">Какие услуги нужны клиенту? Можно выбрать несколько.</div>
+
+      <div class="sec-label" style="margin-bottom:8px">Название проекта / клиента</div>
+      <div style="margin-bottom:28px">
+        <input
+          type="text"
+          id="projectName"
+          placeholder="Например: Эра Beauty, KrovMart, ПроРафтинг..."
+          oninput="S.projectName = this.value"
+          style="width:100%; padding:14px 18px; font-family:'Manrope',sans-serif; font-size:15px; font-weight:600;
+                 background:var(--surface); border:2px solid var(--border); border-radius:var(--radius);
+                 color:var(--ink); outline:none; transition:border-color 0.18s;"
+          onfocus="this.style.borderColor='var(--accent)'"
+          onblur="this.style.borderColor='var(--border)'"
+        />
+      </div>
       <div class="cards c3">
         <div class="card sel" onclick="toggleFmt(this,'target')">
           <span class="card-icon">🎯</span>
@@ -628,6 +643,7 @@ const DEFAULTS = {
 
 // STATE
 const S = {
+  projectName: '',
   format: new Set(['target']),
   adaccount:'clean', tiktok:false, context:false,
   competitor_analysis:true, analytics:false, analytics_type:'basic',
@@ -1040,56 +1056,190 @@ function copyResult() {
 }
 
 // ════════════════════════════════════════════════
-// PDF
+// PDF — полный расчёт со всеми данными
 // ════════════════════════════════════════════════
 async function exportPDF() {
   const btn = document.querySelector('.btn-pdf');
   btn.textContent='⏳ Генерирую...'; btn.disabled=true;
+
   const now = new Date();
   const ds = now.toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
-  document.getElementById('pdfDate').textContent = 'Дата расчёта: ' + ds;
   const r = calcCost();
+  const projectName = S.projectName || '—';
   const fmtLbl = [...S.format].map(f=>f==='target'?'Таргет':f==='content'?'Контент':'Комплекс').join(' + ');
+  const hasTarget  = S.format.has('target')  || S.format.has('complex');
+  const hasContent = S.format.has('content') || S.format.has('complex');
+  const acLbl = S.adaccount==='clean'?'Чистый (без блокировок)':S.adaccount==='blocked'?'Были блокировки':'Нет аккаунта / создаём с нуля';
+
   const COLORS = ['#2B5CE6','#1B8A5A','#8B5CF6','#C4570A','#0891B2','#DC2626'];
   const depts = [
-    {l:'Таргет',h:r.h.target,c:r.cost.target},{l:'Контент',h:r.h.content,c:r.cost.content},
-    {l:'Дизайн',h:r.h.design,c:r.cost.design},{l:'Проджект',h:r.h.project,c:r.cost.project},
-    {l:'Мобилограф',h:r.h.mobile,c:r.cost.mobile},{l:'Видеограф',h:r.h.video,c:r.cost.video},
+    {l:'Таргет',    h:r.h.target,  c:r.cost.target,  color:COLORS[0]},
+    {l:'Контент',   h:r.h.content, c:r.cost.content, color:COLORS[1]},
+    {l:'Дизайн',   h:r.h.design,  c:r.cost.design,  color:COLORS[2]},
+    {l:'Проджект',  h:r.h.project, c:r.cost.project, color:COLORS[3]},
+    {l:'Мобилограф',h:r.h.mobile,  c:r.cost.mobile,  color:COLORS[4]},
+    {l:'Видеограф', h:r.h.video,   c:r.cost.video,   color:COLORS[5]},
   ];
+
+  // Строка таблицы разбивки
+  const deptRows = depts.filter(d=>d.c>0).map(d=>`
+    <tr>
+      <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;display:flex;align-items:center;gap:8px;">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
+        <span style="font-size:13px;">${d.l}</span>
+        <span style="font-size:10px;color:#A09E9A;margin-left:4px;">${d.h.toFixed(1)} ч/мес</span>
+      </td>
+      <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;text-align:right;font-size:13px;font-weight:700;font-family:monospace;white-space:nowrap;">${d.c.toLocaleString('ru-RU')} ₸</td>
+    </tr>`).join('');
+
+  // Данные расчёта для блока "Что выбрано"
+  const inputRows = [
+    hasTarget  && ['Формат', fmtLbl],
+    hasTarget  && ['Рекламный аккаунт', acLbl],
+    hasTarget  && S.static_creatives > 0 && ['Статичных креативов', S.static_creatives + ' шт'],
+    hasTarget  && S.video_creatives > 0  && ['Видеокреативов', S.video_creatives + ' шт'],
+    hasTarget  && (S.scen_target_simple+S.scen_target_med+S.scen_target_hard > 0) && ['Сценарии (таргет)', `простые: ${S.scen_target_simple}, средние: ${S.scen_target_med}, сложные: ${S.scen_target_hard}`],
+    hasTarget  && S.tiktok   && ['TikTok Ads', 'Да'],
+    hasTarget  && S.context  && ['Контекстная реклама', 'Да'],
+    hasTarget  && S.analytics && ['Сквозная аналитика', S.analytics_type==='basic'?'Базовая':'Дашборд (+100 000 ₸)'],
+    hasTarget  && S.lang_kz  && ['Реклама на казахском', 'Да'],
+    hasContent && S.posts > 0           && ['Постов', S.posts + ' шт'],
+    hasContent && S.stories_static > 0  && ['Сторис статика', S.stories_static + ' шт'],
+    hasContent && S.stories_anim > 0    && ['Сторис анимация', S.stories_anim + ' шт'],
+    hasContent && S.video_content > 0   && ['Видео для контента', S.video_content + ' шт'],
+    hasContent && (S.scen_content_simple+S.scen_content_med+S.scen_content_hard > 0) && ['Сценарии (контент)', `простые: ${S.scen_content_simple}, средние: ${S.scen_content_med}, сложные: ${S.scen_content_hard}`],
+    S.use_mobile && ['Мобилограф', `${S.shoot_days_mobile} дн. · ${S.mobile_location==='office'?'в офисе':S.mobile_location==='onsite'?'выезд к клиенту':'другой город'}`],
+    S.use_video  && ['Видеограф',  `${S.shoot_days_video} дн. · ${S.video_location==='office'?'в офисе':S.video_location==='onsite'?'выезд к клиенту':'другой город'}`],
+    (S.use_mobile||S.use_video) && ['Сложность монтажа', S.montage_quality==='good'?'Хорошие исходники':S.montage_quality==='bad'?'Плохие исходники':'Сложный монтаж'],
+    S.ai_video  && ['ИИ-ролики', '+100 000 ₸ фиксировано'],
+    S.taplink   && ['Таплинк', 'Да'],
+    S.landing   && ['Лендинг на Tilda', 'Да'],
+    S.logo      && ['Логотип / оформление', 'Да'],
+    S.giveaway  && ['Розыгрыши', 'Да'],
+  ].filter(Boolean);
+
+  const inputRowsHTML = inputRows.map(([k,v],i)=>`
+    <tr style="background:${i%2===0?'#FAFAF9':'#FFFFFF'}">
+      <td style="padding:8px 14px;font-size:12px;color:#6B6860;border-bottom:1px solid #F0EEE9;">${k}</td>
+      <td style="padding:8px 14px;font-size:12px;font-weight:600;text-align:right;border-bottom:1px solid #F0EEE9;">${v}</td>
+    </tr>`).join('');
+
   const el = document.createElement('div');
-  el.style.cssText = 'font-family:Arial,sans-serif;padding:32px;max-width:700px;color:#1A1916;';
+  el.style.cssText = 'font-family:Arial,sans-serif;padding:36px;max-width:720px;color:#1A1916;background:#fff;';
   el.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #E0DDD8;">
-      <div><div style="font-size:11px;font-weight:700;letter-spacing:0.15em;color:#A09E9A;text-transform:uppercase;margin-bottom:4px;">DISKURS</div>
-      <div style="font-size:22px;font-weight:800;">Расчёт себестоимости проекта</div></div>
-      <div style="text-align:right;font-size:12px;color:#6B6860;">${ds}</div>
+    <!-- ШАПКА -->
+    <table width="100%" style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #E0DDD8;border-collapse:collapse;">
+      <tr>
+        <td>
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.2em;color:#A09E9A;text-transform:uppercase;margin-bottom:5px;">DISKURS</div>
+          <div style="font-size:20px;font-weight:800;color:#1A1916;">Расчёт себестоимости${S.projectName ? ': ' + S.projectName : ''}</div>
+        </td>
+        <td style="text-align:right;vertical-align:top;">
+          <div style="font-size:11px;color:#6B6860;">${ds}</div>
+          <div style="font-size:11px;color:#A09E9A;margin-top:3px;">Формат: ${fmtLbl}</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- ЦЕНА -->
+    <div style="background:#1A1916;border-radius:10px;padding:22px 28px;margin-bottom:20px;color:#fff;">
+      <div style="font-size:9px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:6px;">МИНИМАЛЬНАЯ ЦЕНА ПРОДАЖИ</div>
+      <div style="font-size:40px;font-weight:700;font-family:monospace;margin-bottom:4px;">${r.minSalePrice.toLocaleString('ru-RU')} ₸</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.4);">тенге / месяц &nbsp;·&nbsp; маржа ${Math.round(r.margin*100)}% &nbsp;·&nbsp; операционные расходы учтены</div>
     </div>
-    <div style="background:#1A1916;border-radius:12px;padding:24px;margin-bottom:20px;color:#fff;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:6px;">Минимальная цена продажи</div>
-      <div style="font-size:42px;font-weight:700;font-family:monospace;margin-bottom:4px;">${r.minSalePrice.toLocaleString('ru-RU')} ₸</div>
-      <div style="font-size:12px;color:rgba(255,255,255,0.4);">тенге / месяц · маржа ${Math.round(r.margin*100)}%</div>
+
+    <!-- КАРТОЧКИ ИТОГОВ -->
+    <table width="100%" style="border-collapse:collapse;margin-bottom:20px;">
+      <tr>
+        ${[
+          ['Себестоимость (труд)', r.laborTotal.toLocaleString('ru-RU')+' ₸'],
+          ['Операционные расходы', r.opsPerProject.toLocaleString('ru-RU')+' ₸'],
+          ['Доп. услуги (фиксировано)', r.fixedExtra?r.fixedExtra.toLocaleString('ru-RU')+' ₸':'—'],
+          ['Всего часов / месяц', r.totalHours.toFixed(0)+' ч'],
+        ].map(([l,v])=>`
+          <td width="25%" style="padding:4px;">
+            <div style="padding:12px 14px;background:#F5F4F0;border-radius:8px;border:1px solid #DDDBD6;">
+              <div style="font-size:10px;color:#6B6860;margin-bottom:4px;">${l}</div>
+              <div style="font-size:14px;font-weight:700;">${v}</div>
+            </div>
+          </td>`).join('')}
+      </tr>
+    </table>
+
+    <!-- РАЗБИВКА ПО ОТДЕЛАМ -->
+    <div style="background:#fff;border:1.5px solid #DDDBD6;border-radius:10px;overflow:hidden;margin-bottom:20px;">
+      <div style="padding:9px 14px;background:#EDECEA;font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#6B6860;">РАЗБИВКА ПО ОТДЕЛАМ</div>
+      <table width="100%" style="border-collapse:collapse;">
+        ${depts.filter(d=>d.c>0).map(d=>`
+          <tr>
+            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${d.color};margin-right:8px;vertical-align:middle;"></span>
+              <span style="font-size:13px;vertical-align:middle;">${d.l}</span>
+              <span style="font-size:10px;color:#A09E9A;margin-left:6px;vertical-align:middle;">${d.h.toFixed(1)} ч/мес</span>
+            </td>
+            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;text-align:right;font-size:13px;font-weight:700;font-family:monospace;">${d.c.toLocaleString('ru-RU')} ₸</td>
+          </tr>`).join('')}
+        ${r.opsPerProject ? `
+          <tr>
+            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#999;margin-right:8px;vertical-align:middle;"></span>
+              <span style="font-size:13px;vertical-align:middle;color:#6B6860;">Операционные расходы</span>
+            </td>
+            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;text-align:right;font-size:13px;font-weight:700;font-family:monospace;">${r.opsPerProject.toLocaleString('ru-RU')} ₸</td>
+          </tr>` : ''}
+        ${r.fixedExtra ? `
+          <tr>
+            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#EC4899;margin-right:8px;vertical-align:middle;"></span>
+              <span style="font-size:13px;vertical-align:middle;color:#6B6860;">Доп. услуги (фиксировано)</span>
+            </td>
+            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;text-align:right;font-size:13px;font-weight:700;font-family:monospace;">${r.fixedExtra.toLocaleString('ru-RU')} ₸</td>
+          </tr>` : ''}
+        <tr style="background:#EEF2FD;">
+          <td style="padding:11px 14px;font-size:13px;font-weight:700;">Итого себестоимость</td>
+          <td style="padding:11px 14px;text-align:right;font-size:14px;font-weight:700;font-family:monospace;">${r.totalCost.toLocaleString('ru-RU')} ₸</td>
+        </tr>
+      </table>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;">
-      ${[['Формат',fmtLbl],['Себестоимость (труд)',r.laborTotal.toLocaleString('ru-RU')+' ₸'],['Операционные расходы',r.opsPerProject.toLocaleString('ru-RU')+' ₸'],['Итого себестоимость',r.totalCost.toLocaleString('ru-RU')+' ₸'],['Доп. услуги (фиксировано)',r.fixedExtra?r.fixedExtra.toLocaleString('ru-RU')+' ₸':'—'],['Всего часов / месяц',r.totalHours.toFixed(0)+' ч']].map(([l,v])=>`<div style="padding:12px 14px;background:#F5F4F0;border-radius:8px;border:1px solid #DDDBD6;"><div style="font-size:11px;color:#6B6860;margin-bottom:3px;">${l}</div><div style="font-size:15px;font-weight:700;">${v}</div></div>`).join('')}
+
+    <!-- ЧТО БЫЛО ВЫБРАНО -->
+    <div style="background:#fff;border:1.5px solid #DDDBD6;border-radius:10px;overflow:hidden;margin-bottom:20px;">
+      <div style="padding:9px 14px;background:#E8F5EE;font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1B8A5A;">ЧТО БЫЛО ВЫБРАНО</div>
+      <table width="100%" style="border-collapse:collapse;">
+        ${inputRowsHTML}
+      </table>
     </div>
-    <div style="background:#fff;border:1.5px solid #DDDBD6;border-radius:12px;overflow:hidden;margin-bottom:20px;">
-      <div style="padding:10px 16px;background:#EDECEA;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#6B6860;border-bottom:1px solid #DDDBD6;">Разбивка по отделам</div>
-      ${depts.filter(d=>d.c>0).map((d,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #EDECEA;"><div style="display:flex;align-items:center;gap:8px;"><div style="width:7px;height:7px;border-radius:50%;background:${COLORS[i]};"></div><div><div style="font-size:13px;">${d.l}</div><div style="font-size:10px;color:#A09E9A;">${d.h.toFixed(1)} ч/мес</div></div></div><div style="font-size:13px;font-weight:700;font-family:monospace;">${d.c.toLocaleString('ru-RU')} ₸</div></div>`).join('')}
-      <div style="display:flex;justify-content:space-between;padding:12px 16px;background:#EEF2FD;"><div style="font-size:14px;font-weight:700;">Итого себестоимость</div><div style="font-size:14px;font-weight:700;font-family:monospace;">${r.totalCost.toLocaleString('ru-RU')} ₸</div></div>
+
+    <!-- ФЛАГИ -->
+    ${r.flags.length ? `
+    <div style="padding:14px 16px;background:#FEF0E6;border:1.5px solid rgba(196,87,10,0.25);border-radius:8px;margin-bottom:20px;">
+      <div style="font-size:10px;font-weight:700;color:#C4570A;margin-bottom:6px;text-transform:uppercase;">⚠️ Обрати внимание</div>
+      ${r.flags.map(f=>`<div style="font-size:12px;color:#6B6860;padding:2px 0;">→ ${f}</div>`).join('')}
+    </div>` : ''}
+
+    <!-- ФУТЕР -->
+    <div style="padding-top:14px;border-top:1px solid #DDDBD6;display:flex;justify-content:space-between;font-size:10px;color:#A09E9A;">
+      <span>DISKURS · Калькулятор себестоимости</span>
+      <span>Расчёт от ${ds}</span>
     </div>
-    ${r.flags.length?`<div style="padding:14px 16px;background:#FEF0E6;border:1.5px solid rgba(196,87,10,0.25);border-radius:8px;margin-bottom:20px;"><div style="font-size:11px;font-weight:700;color:#C4570A;margin-bottom:6px;">⚠️ ОБРАТИ ВНИМАНИЕ</div>${r.flags.map(f=>`<div style="font-size:13px;color:#6B6860;padding:2px 0;">→ ${f}</div>`).join('')}</div>`:''}
-    <div style="padding-top:16px;border-top:1px solid #DDDBD6;font-size:11px;color:#A09E9A;text-align:center;">DISKURS · Расчёт от ${ds}</div>
   `;
+
   if (!window.html2pdf) {
     await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
   }
+
+  const safeName = S.projectName ? '_' + S.projectName.replace(/[^а-яёa-z0-9]/gi,'_').slice(0,20) : '';
+  const filename = `DISKURS_Расчет${safeName}_${now.toLocaleDateString('ru-RU').replace(/\./g,'-')}.pdf`;
+
   await html2pdf().set({
-    margin:0, filename:`DISKURS_Расчет_${now.toLocaleDateString('ru-RU').replace(/\./g,'-')}.pdf`,
-    image:{type:'jpeg',quality:0.98},
-    html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},
-    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
-    pagebreak:{mode:'avoid-all'}
+    margin: [8, 8, 8, 8],
+    filename,
+    image: { type:'jpeg', quality:0.98 },
+    html2canvas: { scale:2, useCORS:true, backgroundColor:'#ffffff' },
+    jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
+    pagebreak: { mode:'avoid-all' }
   }).from(el).save();
+
   btn.textContent='✅ Готово!'; btn.disabled=false;
   setTimeout(()=>btn.textContent='📄 Скачать PDF',2500);
 }
