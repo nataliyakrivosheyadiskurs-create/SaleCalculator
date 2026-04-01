@@ -34,6 +34,7 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
 .snav-num { width:26px;height:26px; border-radius:50%; background:rgba(255,255,255,0.12); display:grid; place-items:center; font-size:11px; font-weight:700; flex-shrink:0; transition:background 0.2s; }
 .snav.active .snav-num { background:var(--accent); }
 .snav.done .snav-num { background:var(--green); }
+.snav.snav-hidden { display: none; }
 .snav-label { font-size:13px; font-weight:500; }
 .live-price { margin-top:32px; padding:20px; background:rgba(255,255,255,0.06); border-radius:var(--radius); border:1px solid rgba(255,255,255,0.1); }
 .lp-label { font-size:10px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; color:rgba(255,255,255,0.4); margin-bottom:8px; }
@@ -234,7 +235,7 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
           <div class="card-sub">Таргет + контент + стратегия — всё вместе</div>
         </div>
       </div>
-      <div class="nav-row"><div></div><button class="btn btn-next" onclick="go(1)">Далее →</button></div>
+      <div class="nav-row"><div></div><button class="btn btn-next" onclick="goNext()">Далее →</button></div>
     </div>
 
     <!-- ШАГ 2: ПЛОЩАДКИ -->
@@ -314,8 +315,8 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
       </div>
 
       <div class="nav-row">
-        <button class="btn btn-back" onclick="go(0)">← Назад</button>
-        <button class="btn btn-next" onclick="go(2)">Далее →</button>
+        <button class="btn btn-back" onclick="goBack()">← Назад</button>
+        <button class="btn btn-next" onclick="goNext()">Далее →</button>
       </div>
     </div>
 
@@ -363,8 +364,8 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
       </div>
 
       <div class="nav-row">
-        <button class="btn btn-back" onclick="go(1)">← Назад</button>
-        <button class="btn btn-next" onclick="go(3)">Далее →</button>
+        <button class="btn btn-back" onclick="goBack()">← Назад</button>
+        <button class="btn btn-next" onclick="goNext()">Далее →</button>
       </div>
     </div>
 
@@ -420,8 +421,8 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
       </div>
 
       <div class="nav-row">
-        <button class="btn btn-back" onclick="go(2)">← Назад</button>
-        <button class="btn btn-next" onclick="go(4)">Далее →</button>
+        <button class="btn btn-back" onclick="goBack()">← Назад</button>
+        <button class="btn btn-next" onclick="goNext()">Далее →</button>
       </div>
     </div>
 
@@ -518,8 +519,8 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
       </div>
 
       <div class="nav-row">
-        <button class="btn btn-back" onclick="go(3)">← Назад</button>
-        <button class="btn btn-next" onclick="go(5)">Далее →</button>
+        <button class="btn btn-back" onclick="goBack()">← Назад</button>
+        <button class="btn btn-next" onclick="goNext()">Далее →</button>
       </div>
     </div>
 
@@ -551,7 +552,7 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
         </div>
       </div>
       <div class="nav-row">
-        <button class="btn btn-back" onclick="go(4)">← Назад</button>
+        <button class="btn btn-back" onclick="goBack()">← Назад</button>
         <button class="btn btn-calc" onclick="calculate()">🧮 Рассчитать стоимость</button>
       </div>
     </div>
@@ -697,26 +698,92 @@ function hideLdg() { document.getElementById('ldg').classList.remove('show'); }
 // ════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// SMART NAVIGATION — пропускаем шаги в зависимости от формата
+// Шаги: 0=Формат, 1=Площадки/Таргет, 2=Объёмы таргета,
+//        3=Объёмы контента, 4=Продакшен, 5=Доп.услуги
+// ════════════════════════════════════════════════
+function getStepFlow() {
+  const hasTarget  = S.format.has('target')  || S.format.has('complex');
+  const hasContent = S.format.has('content') || S.format.has('complex');
+  const steps = [0]; // всегда начинаем с формата
+  if (hasTarget)  steps.push(1); // площадки и таргет
+  if (hasTarget)  steps.push(2); // объёмы таргета
+  if (hasContent) steps.push(3); // объёмы контента
+  steps.push(4); // продакшен
+  steps.push(5); // доп. услуги
+  return steps;
+}
+
+function goNext() {
+  const flow = getStepFlow();
+  const idx = flow.indexOf(curStep);
+  if (idx < flow.length - 1) go(flow[idx + 1]);
+}
+
+function goBack() {
+  const flow = getStepFlow();
+  const idx = flow.indexOf(curStep);
+  if (idx > 0) go(flow[idx - 1]);
+}
+
 function go(n) {
   document.getElementById('step'+curStep).classList.remove('active');
   document.getElementById('stepResult').classList.remove('active');
   curStep = n;
   document.getElementById('step'+n).classList.add('active');
-  document.querySelectorAll('.snav').forEach(el => {
-    const s = parseInt(el.dataset.s);
-    el.className = 'snav' + (s===curStep?' active':s<curStep?' done':'');
-  });
+  updateSidebarNav();
   updateLP();
   window.scrollTo({top:0,behavior:'smooth'});
 }
+
+function updateSidebarNav() {
+  const flow = getStepFlow();
+  document.querySelectorAll('.snav').forEach(el => {
+    const s = parseInt(el.dataset.s);
+    const idxInFlow = flow.indexOf(s);
+    const curIdxInFlow = flow.indexOf(curStep);
+    if (!flow.includes(s)) {
+      el.className = 'snav snav-hidden'; // скрываем ненужные шаги
+    } else if (s === curStep) {
+      el.className = 'snav active';
+    } else if (idxInFlow < curIdxInFlow) {
+      el.className = 'snav done';
+    } else {
+      el.className = 'snav';
+    }
+  });
+}
+
 function restart() { document.getElementById('stepResult').classList.remove('active'); go(0); }
 
 // ════════════════════════════════════════════════
 // UI CONTROLS
 // ════════════════════════════════════════════════
 function toggleFmt(card, val) {
-  if (card.classList.contains('sel') && S.format.size > 1) { card.classList.remove('sel'); S.format.delete(val); }
-  else { card.classList.add('sel'); S.format.add(val); }
+  // Если выбирают комплекс — снимаем таргет и контент по отдельности и наоборот
+  if (val === 'complex') {
+    if (card.classList.contains('sel') && S.format.size > 1) {
+      card.classList.remove('sel'); S.format.delete(val);
+    } else {
+      // Снять таргет и контент по отдельности
+      document.querySelectorAll('[onclick*="toggleFmt"]').forEach(c => c.classList.remove('sel'));
+      S.format.clear();
+      card.classList.add('sel'); S.format.add(val);
+    }
+  } else {
+    // Снять комплекс если выбирают таргет/контент по отдельности
+    document.querySelectorAll('[onclick*="toggleFmt"]').forEach(c => {
+      if (c.getAttribute('onclick').includes('complex')) c.classList.remove('sel');
+    });
+    S.format.delete('complex');
+    if (card.classList.contains('sel') && S.format.size > 1) {
+      card.classList.remove('sel'); S.format.delete(val);
+    } else {
+      card.classList.add('sel'); S.format.add(val);
+    }
+  }
+  updateSidebarNav();
   updateLP();
 }
 function one(card, key, val) {
@@ -883,7 +950,9 @@ function calculate() {
   const r = calcCost();
   document.getElementById('step'+curStep).classList.remove('active');
   document.getElementById('stepResult').classList.add('active');
-  document.querySelectorAll('.snav').forEach(el => el.className='snav done');
+  document.querySelectorAll('.snav').forEach(el => {
+    if (!el.classList.contains('snav-hidden')) el.className = 'snav done';
+  });
   window.scrollTo({top:0,behavior:'smooth'});
 
   document.getElementById('r_minprice').textContent = r.minSalePrice.toLocaleString('ru-RU') + ' ₸';
@@ -1026,7 +1095,7 @@ async function exportPDF() {
 }
 
 // INIT
-loadSettings().then(()=>updateLP());
+loadSettings().then(() => { updateLP(); updateSidebarNav(); });
 </script>
 </body>
 </html>
