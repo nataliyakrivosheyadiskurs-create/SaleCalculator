@@ -1064,7 +1064,7 @@ async function exportPDF() {
   btn.disabled = true;
 
   try {
-    // Загружаем jsPDF
+    // Загружаем jsPDF + плагин шрифтов
     if (!window.jspdf) {
       await new Promise((res, rej) => {
         const s = document.createElement('script');
@@ -1077,35 +1077,41 @@ async function exportPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
+    // Загружаем кириллический шрифт (PTSans — поддерживает русский)
+    const fontUrl = 'https://fonts.gstatic.com/s/ptsans/v17/jizaRExUiTo99u79P0WOxOGMMDQ.woff2';
+    const fontUrlBold = 'https://fonts.gstatic.com/s/ptsans/v17/jizfRExUiTo99u79B_mh0OOtLQ0Z.woff2';
+
+    const loadFont = async (url) => {
+      const resp = await fetch(url);
+      const buf = await resp.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin);
+    };
+
+    try {
+      const [fontB64, boldB64] = await Promise.all([loadFont(fontUrl), loadFont(fontUrlBold)]);
+      doc.addFileToVFS('PTSans-Regular.woff2', fontB64);
+      doc.addFont('PTSans-Regular.woff2', 'PTSans', 'normal');
+      doc.addFileToVFS('PTSans-Bold.woff2', boldB64);
+      doc.addFont('PTSans-Bold.woff2', 'PTSans', 'bold');
+      doc.setFont('PTSans', 'normal');
+    } catch(fontErr) {
+      console.warn('Font load failed, using fallback', fontErr);
+    }
+
     const r = calcCost();
     const now = new Date();
     const ds = now.toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
 
-    // Транслитерация для jsPDF (не поддерживает кириллицу без шрифтов)
-    const tr = (s) => s
-      .replace(/А/g,'A').replace(/Б/g,'B').replace(/В/g,'V').replace(/Г/g,'G')
-      .replace(/Д/g,'D').replace(/Е/g,'E').replace(/Ё/g,'Yo').replace(/Ж/g,'Zh')
-      .replace(/З/g,'Z').replace(/И/g,'I').replace(/Й/g,'J').replace(/К/g,'K')
-      .replace(/Л/g,'L').replace(/М/g,'M').replace(/Н/g,'N').replace(/О/g,'O')
-      .replace(/П/g,'P').replace(/Р/g,'R').replace(/С/g,'S').replace(/Т/g,'T')
-      .replace(/У/g,'U').replace(/Ф/g,'F').replace(/Х/g,'Kh').replace(/Ц/g,'Ts')
-      .replace(/Ч/g,'Ch').replace(/Ш/g,'Sh').replace(/Щ/g,'Shch').replace(/Ъ/g,"'")
-      .replace(/Ы/g,'Y').replace(/Ь/g,"'").replace(/Э/g,'E').replace(/Ю/g,'Yu')
-      .replace(/Я/g,'Ya')
-      .replace(/а/g,'a').replace(/б/g,'b').replace(/в/g,'v').replace(/г/g,'g')
-      .replace(/д/g,'d').replace(/е/g,'e').replace(/ё/g,'yo').replace(/ж/g,'zh')
-      .replace(/з/g,'z').replace(/и/g,'i').replace(/й/g,'j').replace(/к/g,'k')
-      .replace(/л/g,'l').replace(/м/g,'m').replace(/н/g,'n').replace(/о/g,'o')
-      .replace(/п/g,'p').replace(/р/g,'r').replace(/с/g,'s').replace(/т/g,'t')
-      .replace(/у/g,'u').replace(/ф/g,'f').replace(/х/g,'kh').replace(/ц/g,'ts')
-      .replace(/ч/g,'ch').replace(/ш/g,'sh').replace(/щ/g,'shch').replace(/ъ/g,"'")
-      .replace(/ы/g,'y').replace(/ь/g,"'").replace(/э/g,'e').replace(/ю/g,'yu')
-      .replace(/я/g,'ya');
+    // tr() больше не нужна — шрифт поддерживает кириллицу
+    const tr = (s) => s;
 
     const fmt = n => n.toLocaleString('ru-RU');
     const hasTarget  = S.format.has('target')  || S.format.has('complex');
     const hasContent = S.format.has('content') || S.format.has('complex');
-    const fmtLbl = [...S.format].map(f=>f==='target'?'Target':f==='content'?'Content':'Complex').join(' + ');
+    const fmtLbl = [...S.format].map(f=>f==='target'?'Таргет':f==='content'?'Контент':'Комплекс').join(' + ');
 
     const PW = 210, ML = 14, MR = 14, CW = PW - ML - MR;
     let y = 16;
@@ -1128,10 +1134,10 @@ async function exportPDF() {
 
     const txt = (str, x, iy, size=10, bold=false, color='#222222', align='left') => {
       doc.setFontSize(size);
-      doc.setFont('helvetica', bold?'bold':'normal');
+      try { doc.setFont('PTSans', bold?'bold':'normal'); } catch(e) { doc.setFont('helvetica', bold?'bold':'normal'); }
       const hex = color.replace('#','');
       doc.setTextColor(parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16));
-      doc.text(tr(str), x, iy, { align });
+      doc.text(str, x, iy, { align });
     };
 
     const row2 = (left, right, iy, alt=false) => {
@@ -1147,28 +1153,28 @@ async function exportPDF() {
     y += 5;
 
     const title = S.projectName
-      ? tr('Raschet sebestoimosti: ' + S.projectName)
-      : 'Raschet sebestoimosti proekta';
+      ? tr('Расчёт себестоимости: ' + S.projectName)
+      : 'Расчёт себестоимости проекта';
     txt(title, ML, y, 16, true, '#111111');
     y += 4;
-    txt('Format: ' + fmtLbl, ML, y, 9, false, '#888888');
+    txt('Формат: ' + fmtLbl, ML, y, 9, false, '#888888');
     y += 3;
     line(ML, y, PW-MR, y, '#CCCCCC');
     y += 8;
 
     // ── PRICE BOX ────────────────────────────────────
     rect(ML, y, CW, 26, '#1A1916');
-    txt('MIN. PRODAZHNAYA TSENA', ML+4, y+6, 7, true, '#888888');
+    txt('МИН. ЦЕНА ПРОДАЖИ', ML+4, y+6, 7, true, '#888888');
     txt(fmt(r.minSalePrice) + ' T', ML+4, y+17, 20, true, '#FFFFFF');
     txt('tenge/mes  *  marzha ' + Math.round(r.margin*100) + '%  *  operat. raskhody uchtenY', ML+4, y+23, 7, false, '#888888');
     y += 31;
 
     // ── 4 SUMMARY CARDS ──────────────────────────────
     const cards = [
-      ['Sebestoimost (trud)',  fmt(r.laborTotal)    + ' T'],
-      ['Operat. raskhody',    fmt(r.opsPerProject) + ' T'],
-      ['Dop. uslugi (fiks.)', r.fixedExtra ? fmt(r.fixedExtra)+' T' : '—'],
-      ['Vsego chasov/mes',    r.totalHours.toFixed(0) + ' ch'],
+      ['Себестоимость (труд)',  fmt(r.laborTotal)    + ' T'],
+      ['Операц. расходы',    fmt(r.opsPerProject) + ' T'],
+      ['Доп. услуги (фикс.)', r.fixedExtra ? fmt(r.fixedExtra)+' T' : '—'],
+      ['Всего часов/мес',    r.totalHours.toFixed(0) + ' ch'],
     ];
     const cw4 = (CW - 9) / 4;
     cards.forEach((c,i) => {
@@ -1182,16 +1188,16 @@ async function exportPDF() {
 
     // ── BREAKDOWN ────────────────────────────────────
     rect(ML, y, CW, 7, '#EDECEA');
-    txt('RAZBIRKA PO OTDELAM', ML+2, y+5, 7, true, '#666666');
+    txt('РАЗБИВКА ПО ОТДЕЛАМ', ML+2, y+5, 7, true, '#666666');
     y += 7;
 
     const depts = [
-      {l:'Target',     h:r.h.target,  c:r.cost.target,  col:'#2B5CE6'},
-      {l:'Content',    h:r.h.content, c:r.cost.content, col:'#1B8A5A'},
-      {l:'Dizajn',    h:r.h.design,  c:r.cost.design,  col:'#8B5CF6'},
-      {l:'Prodzhekt',  h:r.h.project, c:r.cost.project, col:'#C4570A'},
-      {l:'Mobilograf', h:r.h.mobile,  c:r.cost.mobile,  col:'#0891B2'},
-      {l:'Videograf',  h:r.h.video,   c:r.cost.video,   col:'#DC2626'},
+      {l:'Таргет',     h:r.h.target,  c:r.cost.target,  col:'#2B5CE6'},
+      {l:'Контент',    h:r.h.content, c:r.cost.content, col:'#1B8A5A'},
+      {l:'Дизайн',    h:r.h.design,  c:r.cost.design,  col:'#8B5CF6'},
+      {l:'Проджект',  h:r.h.project, c:r.cost.project, col:'#C4570A'},
+      {l:'Мобилограф', h:r.h.mobile,  c:r.cost.mobile,  col:'#0891B2'},
+      {l:'Видеограф',  h:r.h.video,   c:r.cost.video,   col:'#DC2626'},
     ].filter(d => d.c > 0);
 
     depts.forEach((d,i) => {
@@ -1211,57 +1217,57 @@ async function exportPDF() {
       checkY(8);
       rect(ML,y,CW,8,'#FAFAFA');
       doc.setFillColor(153,153,153); doc.circle(ML+4,y+4,1.5,'F');
-      txt('Operat. raskhody', ML+9, y+5.5, 10, false, '#666666');
+      txt('Операц. расходы', ML+9, y+5.5, 10, false, '#666666');
       txt(fmt(r.opsPerProject)+' T', PW-MR-2, y+5.5, 10, true, '#222222','right');
       line(ML,y+8,PW-MR,y+8); y+=8;
     }
     if (r.fixedExtra) {
       checkY(8);
       doc.setFillColor(236,72,153); doc.circle(ML+4,y+4,1.5,'F');
-      txt('Dop. uslugi (fiks.)', ML+9, y+5.5, 10, false, '#666666');
+      txt('Доп. услуги (фикс.)', ML+9, y+5.5, 10, false, '#666666');
       txt(fmt(r.fixedExtra)+' T', PW-MR-2, y+5.5, 10, true, '#222222','right');
       line(ML,y+8,PW-MR,y+8); y+=8;
     }
 
     checkY(10);
     rect(ML, y, CW, 10, '#EEF2FD');
-    txt('ITOGO SEBESTOIMOST', ML+9, y+7, 11, true, '#111111');
+    txt('ИТОГО СЕБЕСТОИМОСТЬ', ML+9, y+7, 11, true, '#111111');
     txt(fmt(r.totalCost)+' T', PW-MR-2, y+7, 11, true, '#2B5CE6', 'right');
     y += 15;
 
     // ── WHAT WAS CHOSEN ──────────────────────────────
     checkY(10);
     rect(ML, y, CW, 7, '#E8F5EE');
-    txt('CHTO BYLO VYBRANO', ML+2, y+5, 7, true, '#1B8A5A');
+    txt('ЧТО БЫЛО ВЫБРАНО', ML+2, y+5, 7, true, '#1B8A5A');
     y += 7;
 
-    const acLbl = S.adaccount==='clean'?'Chistyj (bez blokirovok)':S.adaccount==='blocked'?'Byli blokirovki':'Net akkaunta / sozdaem s nulya';
+    const acLbl = S.adaccount==='clean'?'Чистый (без блокировок)':S.adaccount==='blocked'?'Были блокировки':'Нет аккаунта / создаём с нуля';
 
     const inputRows = [
-      ['Format raboty', fmtLbl],
-      hasTarget && ['Reklamnyi akkaunt', acLbl],
-      hasTarget && S.static_creatives>0 && ['Statichnyh kreativov', S.static_creatives+' sht'],
-      hasTarget && S.video_creatives>0  && ['Videokreativov', S.video_creatives+' sht'],
+      ['Формат работы', fmtLbl],
+      hasTarget && ['Рекламный аккаунт', acLbl],
+      hasTarget && S.static_creatives>0 && ['Статичных креативов', S.static_creatives+' шт'],
+      hasTarget && S.video_creatives>0  && ['Видеокреативов', S.video_creatives+' шт'],
       hasTarget && (S.scen_target_simple+S.scen_target_med+S.scen_target_hard>0) &&
-        ['Stsenarii targetologa', 'prost:'+S.scen_target_simple+' sred:'+S.scen_target_med+' slozh:'+S.scen_target_hard],
-      hasTarget && S.tiktok   && ['TikTok Ads', 'Da'],
-      hasTarget && S.context  && ['Kontekstnaya reklama', 'Da'],
-      hasTarget && S.analytics && ['Skvoznaya analitika', S.analytics_type==='basic'?'Bazovaya':'Dashboard (+100 000 T)'],
-      hasTarget && S.lang_kz  && ['Reklama na kazakhskom', 'Da'],
-      hasContent && S.posts>0           && ['Postov', S.posts+' sht'],
-      hasContent && S.stories_static>0  && ['Storis (statika)', S.stories_static+' sht'],
-      hasContent && S.stories_anim>0    && ['Storis (animatsiya)', S.stories_anim+' sht'],
-      hasContent && S.video_content>0   && ['Video dlya kontenta', S.video_content+' sht'],
+        ['Сценарии таргетолога', 'prost:'+S.scen_target_simple+' sred:'+S.scen_target_med+' slozh:'+S.scen_target_hard],
+      hasTarget && S.tiktok   && ['TikTok Ads', 'Да'],
+      hasTarget && S.context  && ['Контекстная реклама', 'Да'],
+      hasTarget && S.analytics && ['Сквозная аналитика', S.analytics_type==='basic'?'Базовая':'Dashboard (+100 000 T)'],
+      hasTarget && S.lang_kz  && ['Реклама на казахском', 'Да'],
+      hasContent && S.posts>0           && ['Постов', S.posts+' шт'],
+      hasContent && S.stories_static>0  && ['Сторис (статика)', S.stories_static+' шт'],
+      hasContent && S.stories_anim>0    && ['Сторис (анимация)', S.stories_anim+' шт'],
+      hasContent && S.video_content>0   && ['Видео для контента', S.video_content+' шт'],
       hasContent && (S.scen_content_simple+S.scen_content_med+S.scen_content_hard>0) &&
-        ['Stsenarii kontentshchika', 'prost:'+S.scen_content_simple+' sred:'+S.scen_content_med+' slozh:'+S.scen_content_hard],
-      S.use_mobile && ['Mobilograf', S.shoot_days_mobile+' dn. / '+(S.mobile_location==='office'?'ofis':S.mobile_location==='onsite'?'vyezd':'drugoj gorod')],
-      S.use_video  && ['Videograf',  S.shoot_days_video +' dn. / '+(S.video_location==='office'?'ofis':S.video_location==='onsite'?'vyezd':'drugoj gorod')],
-      (S.use_mobile||S.use_video) && ['Slozhnost montazha', S.montage_quality==='good'?'Khoroshie ishodniki':S.montage_quality==='bad'?'Plokhie ishodniki':'Slozhnyj montazh'],
+        ['Сценарии контентщика', 'prost:'+S.scen_content_simple+' sred:'+S.scen_content_med+' slozh:'+S.scen_content_hard],
+      S.use_mobile && ['Мобилограф', S.shoot_days_mobile+' дн. / '+(S.mobile_location==='office'?'офис':S.mobile_location==='onsite'?'выезд':'другой город')],
+      S.use_video  && ['Видеограф',  S.shoot_days_video +' дн. / '+(S.video_location==='office'?'офис':S.video_location==='onsite'?'выезд':'другой город')],
+      (S.use_mobile||S.use_video) && ['Сложность монтажа', S.montage_quality==='good'?'Хорошие исходники':S.montage_quality==='bad'?'Плохие исходники':'Сложный монтаж'],
       S.ai_video && ['AI-roliki', '+100 000 T'],
-      S.taplink  && ['Taplink', 'Da'],
-      S.landing  && ['Lending na Tilda', 'Da'],
-      S.logo     && ['Logotip / oformlenie', 'Da'],
-      S.giveaway && ['Rozygryshi', 'Da'],
+      S.taplink  && ['Таплинк', 'Да'],
+      S.landing  && ['Лендинг на Tilda', 'Да'],
+      S.logo     && ['Логотип / оформление', 'Да'],
+      S.giveaway && ['Розыгрыши', 'Да'],
     ].filter(Boolean);
 
     inputRows.forEach(([k,v], i) => {
@@ -1276,10 +1282,10 @@ async function exportPDF() {
       checkY(14 + r.flags.length * 7);
       rect(ML, y, CW, 7 + r.flags.length*7, '#FEF0E6');
       doc.setDrawColor('#F0C090'); doc.setLineWidth(0.3); doc.rect(ML,y,CW,7+r.flags.length*7);
-      txt('OBRATI VNIMANIE', ML+3, y+5, 7, true, '#C4570A');
+      txt('ОБРАТИ ВНИМАНИЕ', ML+3, y+5, 7, true, '#C4570A');
       y += 7;
       r.flags.forEach(f => {
-        txt('-> ' + tr(f), ML+3, y+4, 8, false, '#885500');
+        txt('→ ' + f, ML+3, y+4, 8, false, '#885500');
         y += 7;
       });
       y += 3;
@@ -1290,21 +1296,21 @@ async function exportPDF() {
     for (let p = 1; p <= total; p++) {
       doc.setPage(p);
       rect(0, 287, PW, 10, '#F5F4F0');
-      txt('DISKURS - Kalkulator sebestoimosti', ML, 293, 7.5, false, '#AAAAAA');
-      txt('Raschet ot ' + ds, PW-MR, 293, 7.5, false, '#AAAAAA', 'right');
+      txt('DISKURS — Калькулятор себестоимости', ML, 293, 7.5, false, '#AAAAAA');
+      txt('Расчёт от ' + ds, PW-MR, 293, 7.5, false, '#AAAAAA', 'right');
     }
 
     const safeName = S.projectName ? '_' + S.projectName.replace(/[^a-zA-Z0-9]/g,'_').slice(0,20) : '';
-    doc.save('DISKURS_Raschet' + safeName + '_' + now.toLocaleDateString('ru-RU').replace(/\./g,'-') + '.pdf');
+    doc.save('DISKURS_Расчёт' + safeName + '_' + now.toLocaleDateString('ru-RU').replace(/\./g,'-') + '.pdf');
 
   } catch(e) {
     console.error('PDF error:', e);
-    alert('Oshibka generatsii PDF: ' + e.message);
+    alert('Ошибка генерации PDF: ' + e.message);
   }
 
-  btn.textContent = '✅ Gotovo!';
+  btn.textContent = '✅ Готово!';
   btn.disabled = false;
-  setTimeout(() => btn.textContent = '📄 Skachat PDF', 2500);
+  setTimeout(() => btn.textContent = '📄 Скачать PDF', 2500);
 }
 
 // INIT
