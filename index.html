@@ -1119,129 +1119,128 @@ async function exportPDF() {
       S.giveaway && ['Розыгрыши', 'Да'],
     ].filter(Boolean);
 
-    // Строим чистый HTML для PDF — только inline-стили, никаких внешних ресурсов
-    const css = `
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:Arial,Helvetica,sans-serif;color:#1a1916;font-size:11px;line-height:1.4}
-      .page{width:170mm;padding:0}
-      .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:10px;border-bottom:2px solid #dddbd6;margin-bottom:14px}
-      .logo{font-size:8px;font-weight:700;letter-spacing:0.2em;color:#a09e9a;text-transform:uppercase;margin-bottom:4px}
-      .title{font-size:17px;font-weight:800;color:#1a1916}
-      .meta{text-align:right;font-size:9px;color:#6b6860}
-      .price-box{background:#1a1916;border-radius:8px;padding:16px 20px;margin-bottom:12px;color:#fff}
-      .price-lbl{font-size:7px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#888;margin-bottom:6px}
-      .price-val{font-size:32px;font-weight:700;font-family:Courier,monospace;margin-bottom:3px}
-      .price-note{font-size:8px;color:#888}
-      .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
-      .card{padding:9px 10px;background:#f5f4f0;border:1px solid #dddbd6;border-radius:6px}
-      .card-lbl{font-size:7px;color:#6b6860;margin-bottom:3px}
-      .card-val{font-size:12px;font-weight:700}
-      .section{background:#fff;border:1px solid #dddbd6;border-radius:6px;overflow:hidden;margin-bottom:10px}
-      .sec-head{padding:7px 12px;font-size:7px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase}
-      .sec-head.gray{background:#edecea;color:#6b6860}
-      .sec-head.green{background:#e8f5ee;color:#1b8a5a}
-      .bd-row{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid #f0eee9}
-      .bd-row:last-child{border-bottom:none}
-      .bd-row.total{background:#eef2fd;font-weight:700}
-      .bd-left{display:flex;align-items:center;gap:6px}
-      .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-      .bd-name{font-size:11px}
-      .bd-hrs{font-size:9px;color:#a09e9a;margin-left:4px}
-      .bd-amt{font-size:11px;font-weight:700;font-family:Courier,monospace;white-space:nowrap}
-      .inp-row{display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid #f0eee9;font-size:10px}
-      .inp-row:nth-child(odd){background:#fafaf9}
-      .inp-row:last-child{border-bottom:none}
-      .inp-key{color:#6b6860}
-      .inp-val{font-weight:600;text-align:right;max-width:55%}
-      .flag-box{padding:10px 12px;background:#fef0e6;border:1px solid rgba(196,87,10,0.25);border-radius:6px;margin-bottom:10px}
-      .flag-title{font-size:8px;font-weight:700;color:#c4570a;margin-bottom:5px;text-transform:uppercase}
-      .flag-item{font-size:9px;color:#6b6860;padding:2px 0}
-      .footer{display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid #dddbd6;font-size:8px;color:#a09e9a;margin-top:6px}
-    `;
-
-    const deptRowsHTML = depts.map(d => `
-      <div class="bd-row">
-        <div class="bd-left">
-          <div class="dot" style="background:${d.col}"></div>
-          <span class="bd-name">${d.l}</span>
-          <span class="bd-hrs">${d.h.toFixed(1)} ч/мес</span>
-        </div>
-        <div class="bd-amt">${d.c.toLocaleString('ru-RU')} T</div>
-      </div>`).join('') +
-      (r.opsPerProject ? `<div class="bd-row"><div class="bd-left"><div class="dot" style="background:#999"></div><span class="bd-name">Операционные расходы</span></div><div class="bd-amt">${r.opsPerProject.toLocaleString('ru-RU')} T</div></div>` : '') +
-      (r.fixedExtra    ? `<div class="bd-row"><div class="bd-left"><div class="dot" style="background:#ec4899"></div><span class="bd-name">Доп. услуги (фиксировано)</span></div><div class="bd-amt">${r.fixedExtra.toLocaleString('ru-RU')} T</div></div>` : '') +
-      `<div class="bd-row total"><div class="bd-left"><div class="dot" style="background:#2b5ce6"></div><span>Итого себестоимость</span></div><div class="bd-amt" style="color:#2b5ce6">${r.totalCost.toLocaleString('ru-RU')} T</div></div>`;
-
-    const inputRowsHTML = inputRows.map(([k,v]) => `
-      <div class="inp-row"><span class="inp-key">${k}</span><span class="inp-val">${v}</span></div>`).join('');
-
-    const flagsHTML = r.flags.length ? `
-      <div class="flag-box">
-        <div class="flag-title">Обрати внимание</div>
-        ${r.flags.map(f=>`<div class="flag-item">-> ${f}</div>`).join('')}
-      </div>` : '';
-
-    const projectLine = S.projectName ? ': ' + S.projectName : '';
-
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body><div class="page">
-      <div class="header">
-        <div>
-          <div class="logo">DISKURS</div>
-          <div class="title">Расчет себестоимости${projectLine}</div>
-        </div>
-        <div class="meta">
-          <div>${ds}</div>
-          <div style="margin-top:3px;color:#a09e9a">Формат: ${fmtLbl}</div>
-        </div>
-      </div>
-
-      <div class="price-box">
-        <div class="price-lbl">Минимальная цена продажи</div>
-        <div class="price-val">${r.minSalePrice.toLocaleString('ru-RU')} T</div>
-        <div class="price-note">тенге / месяц  *  маржа ${Math.round(r.margin*100)}%  *  операционные расходы учтены</div>
-      </div>
-
-      <div class="cards">
-        <div class="card"><div class="card-lbl">Себестоимость (труд)</div><div class="card-val">${r.laborTotal.toLocaleString('ru-RU')} T</div></div>
-        <div class="card"><div class="card-lbl">Операционные расходы</div><div class="card-val">${r.opsPerProject.toLocaleString('ru-RU')} T</div></div>
-        <div class="card"><div class="card-lbl">Доп. услуги (фикс.)</div><div class="card-val">${r.fixedExtra ? r.fixedExtra.toLocaleString('ru-RU')+' T' : '—'}</div></div>
-        <div class="card"><div class="card-lbl">Всего часов / месяц</div><div class="card-val">${r.totalHours.toFixed(0)} ч</div></div>
-      </div>
-
-      <div class="section">
-        <div class="sec-head gray">Разбивка по отделам</div>
-        ${deptRowsHTML}
-      </div>
-
-      <div class="section">
-        <div class="sec-head green">Что было выбрано</div>
-        ${inputRowsHTML}
-      </div>
-
-      ${flagsHTML}
-
-      <div class="footer">
-        <span>DISKURS — Калькулятор себестоимости</span>
-        <span>Расчет от ${ds}</span>
-      </div>
-    </div></body></html>`;
+    // Строим PDF прямо через DOM
+    const fmt = n => n.toLocaleString('ru-RU');
 
     const safeName = S.projectName ? '_' + S.projectName.replace(/[^a-zA-Z0-9]/g,'_').slice(0,20) : '';
     const filename = 'DISKURS_Расчет' + safeName + '_' + now.toLocaleDateString('ru-RU').replace(/\./g,'-') + '.pdf';
 
-    // Создаём iframe — самый надёжный способ для html2pdf
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;top:0;left:0;width:210mm;height:1px;opacity:0;pointer-events:none;border:none;';
-    document.body.appendChild(iframe);
+    // Вставляем контент прямо в body — видимым, но за пределами экрана
+    const wrapper = document.createElement('div');
+    wrapper.id = 'pdf-wrapper';
+    wrapper.style.cssText = [
+      'position:absolute',
+      'top:0',
+      'left:0',
+      'width:794px',      // ~210mm при 96dpi
+      'background:#fff',
+      'z-index:-1',
+      'font-family:Arial,Helvetica,sans-serif',
+      'font-size:11px',
+      'color:#1a1916',
+      'line-height:1.4',
+      'padding:40px',
+    ].join(';');
 
-    const iDoc = iframe.contentDocument || iframe.contentWindow.document;
-    iDoc.open(); iDoc.write(html); iDoc.close();
+    // Полностью inline-стили, никаких классов и внешних зависимостей
+    const fmt = n => n.toLocaleString('ru-RU');
 
-    // Ждём пока iframe отрендерится
-    await new Promise(r => setTimeout(r, 500));
+    wrapper.innerHTML = `
+      <style>
+        #pdf-wrapper * { box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; }
+      </style>
+
+      <!-- ШАПКА -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:2px solid #dddbd6;margin-bottom:16px;">
+        <div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:3px;color:#a09e9a;text-transform:uppercase;margin-bottom:5px;">DISKURS</div>
+          <div style="font-size:20px;font-weight:800;color:#1a1916;">Расчет себестоимости${S.projectName ? ': ' + S.projectName : ''}</div>
+        </div>
+        <div style="text-align:right;font-size:10px;color:#6b6860;">
+          <div>${ds}</div>
+          <div style="margin-top:3px;color:#a09e9a;">Формат: ${fmtLbl}</div>
+        </div>
+      </div>
+
+      <!-- ЦЕНА -->
+      <div style="background:#1a1916;border-radius:8px;padding:18px 22px;margin-bottom:14px;color:#fff;">
+        <div style="font-size:8px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#888;margin-bottom:8px;">МИНИМАЛЬНАЯ ЦЕНА ПРОДАЖИ</div>
+        <div style="font-size:36px;font-weight:700;margin-bottom:5px;">${fmt(r.minSalePrice)} T</div>
+        <div style="font-size:9px;color:#888;">тенге / месяц &nbsp; маржа ${Math.round(r.margin*100)}% &nbsp; операционные расходы учтены</div>
+      </div>
+
+      <!-- 4 КАРТОЧКИ -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        ${[
+          ['Себестоимость (труд)',    fmt(r.laborTotal)    + ' T'],
+          ['Операционные расходы',   fmt(r.opsPerProject) + ' T'],
+          ['Доп. услуги (фикс.)',    r.fixedExtra ? fmt(r.fixedExtra) + ' T' : '—'],
+          ['Всего часов / месяц',    r.totalHours.toFixed(0) + ' ч'],
+        ].map(([l,v]) => `
+          <div style="flex:1;padding:10px 12px;background:#f5f4f0;border:1px solid #dddbd6;border-radius:6px;">
+            <div style="font-size:8px;color:#6b6860;margin-bottom:4px;">${l}</div>
+            <div style="font-size:13px;font-weight:700;">${v}</div>
+          </div>`).join('')}
+      </div>
+
+      <!-- РАЗБИВКА ПО ОТДЕЛАМ -->
+      <div style="border:1px solid #dddbd6;border-radius:6px;overflow:hidden;margin-bottom:12px;">
+        <div style="padding:8px 14px;background:#edecea;font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#6b6860;">РАЗБИВКА ПО ОТДЕЛАМ</div>
+        ${depts.map((d,i) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid #f0eee9;background:${i%2===0?'#fafafa':'#fff'};">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:8px;height:8px;border-radius:50%;background:${d.col};flex-shrink:0;"></div>
+              <span style="font-size:11px;">${d.l}</span>
+              <span style="font-size:9px;color:#a09e9a;">${d.h.toFixed(1)} ч/мес</span>
+            </div>
+            <div style="font-size:11px;font-weight:700;">${fmt(d.c)} T</div>
+          </div>`).join('')}
+        ${r.opsPerProject ? `
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #f0eee9;background:#fafafa;">
+            <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#999;flex-shrink:0;"></div><span style="font-size:11px;color:#6b6860;">Операционные расходы</span></div>
+            <div style="font-size:11px;font-weight:700;">${fmt(r.opsPerProject)} T</div>
+          </div>` : ''}
+        ${r.fixedExtra ? `
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #f0eee9;">
+            <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#ec4899;flex-shrink:0;"></div><span style="font-size:11px;color:#6b6860;">Доп. услуги (фиксировано)</span></div>
+            <div style="font-size:11px;font-weight:700;">${fmt(r.fixedExtra)} T</div>
+          </div>` : ''}
+        <div style="display:flex;justify-content:space-between;padding:10px 14px;background:#eef2fd;">
+          <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#2b5ce6;flex-shrink:0;"></div><strong style="font-size:12px;">Итого себестоимость</strong></div>
+          <strong style="font-size:12px;color:#2b5ce6;">${fmt(r.totalCost)} T</strong>
+        </div>
+      </div>
+
+      <!-- ЧТО ВЫБРАНО -->
+      <div style="border:1px solid #dddbd6;border-radius:6px;overflow:hidden;margin-bottom:12px;">
+        <div style="padding:8px 14px;background:#e8f5ee;font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#1b8a5a;">ЧТО БЫЛО ВЫБРАНО</div>
+        ${inputRows.map(([k,v],i) => `
+          <div style="display:flex;justify-content:space-between;padding:7px 14px;border-bottom:1px solid #f0eee9;background:${i%2===0?'#fafaf9':'#fff'};">
+            <span style="font-size:10px;color:#6b6860;">${k}</span>
+            <span style="font-size:10px;font-weight:600;text-align:right;max-width:55%;">${v}</span>
+          </div>`).join('')}
+      </div>
+
+      ${r.flags.length ? `
+      <div style="padding:12px 14px;background:#fef0e6;border:1px solid rgba(196,87,10,0.3);border-radius:6px;margin-bottom:12px;">
+        <div style="font-size:8px;font-weight:700;color:#c4570a;text-transform:uppercase;margin-bottom:6px;">Обрати внимание</div>
+        ${r.flags.map(f=>`<div style="font-size:10px;color:#6b6860;padding:2px 0;">-> ${f}</div>`).join('')}
+      </div>` : ''}
+
+      <!-- ФУТЕР -->
+      <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid #dddbd6;font-size:8px;color:#a09e9a;margin-top:8px;">
+        <span>DISKURS — Калькулятор себестоимости</span>
+        <span>Расчет от ${ds}</span>
+      </div>
+    `;
+
+    document.body.appendChild(wrapper);
+
+    // Даём браузеру время отрендерить DOM
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     await html2pdf().set({
-      margin: [15, 15, 15, 15],
+      margin: 0,
       filename,
       image: { type: 'jpeg', quality: 0.97 },
       html2canvas: {
@@ -1249,13 +1248,14 @@ async function exportPDF() {
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
+        width: 794,
         windowWidth: 794,
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: 'avoid-all' }
-    }).from(iDoc.body).save();
+    }).from(wrapper).save();
 
-    document.body.removeChild(iframe);
+    document.body.removeChild(wrapper);
 
   } catch(e) {
     console.error('PDF error:', e);
