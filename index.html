@@ -1077,9 +1077,9 @@ async function exportPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-    // Загружаем кириллический шрифт (PTSans — поддерживает русский)
-    const fontUrl = 'https://fonts.gstatic.com/s/ptsans/v17/jizaRExUiTo99u79P0WOxOGMMDQ.woff2';
-    const fontUrlBold = 'https://fonts.gstatic.com/s/ptsans/v17/jizfRExUiTo99u79B_mh0OOtLQ0Z.woff2';
+    // Загружаем кириллический TTF шрифт (jsPDF поддерживает только TTF/OTF, не woff2)
+    const fontUrl     = 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PT_Sans-Web-Regular.ttf';
+    const fontUrlBold = 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PT_Sans-Web-Bold.ttf';
 
     const loadFont = async (url) => {
       const resp = await fetch(url);
@@ -1092,10 +1092,10 @@ async function exportPDF() {
 
     try {
       const [fontB64, boldB64] = await Promise.all([loadFont(fontUrl), loadFont(fontUrlBold)]);
-      doc.addFileToVFS('PTSans-Regular.woff2', fontB64);
-      doc.addFont('PTSans-Regular.woff2', 'PTSans', 'normal');
-      doc.addFileToVFS('PTSans-Bold.woff2', boldB64);
-      doc.addFont('PTSans-Bold.woff2', 'PTSans', 'bold');
+      doc.addFileToVFS('PTSans-Regular.ttf', fontB64);
+      doc.addFont('PTSans-Regular.ttf', 'PTSans', 'normal');
+      doc.addFileToVFS('PTSans-Bold.ttf', boldB64);
+      doc.addFont('PTSans-Bold.ttf', 'PTSans', 'bold');
       doc.setFont('PTSans', 'normal');
     } catch(fontErr) {
       console.warn('Font load failed, using fallback', fontErr);
