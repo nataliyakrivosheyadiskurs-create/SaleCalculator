@@ -1064,207 +1064,247 @@ async function exportPDF() {
   btn.disabled = true;
 
   try {
-    // Загружаем html2pdf
-    if (!window.html2pdf) {
+    // Загружаем jsPDF
+    if (!window.jspdf) {
       await new Promise((res, rej) => {
         const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
         s.onload = res; s.onerror = rej;
         document.head.appendChild(s);
       });
     }
 
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+    const r = calcCost();
     const now = new Date();
     const ds = now.toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
-    const r = calcCost();
-    const fmtLbl = [...S.format].map(f => f==='target'?'Таргет':f==='content'?'Контент':'Комплекс').join(' + ');
+
+    // Транслитерация для jsPDF (не поддерживает кириллицу без шрифтов)
+    const tr = (s) => s
+      .replace(/А/g,'A').replace(/Б/g,'B').replace(/В/g,'V').replace(/Г/g,'G')
+      .replace(/Д/g,'D').replace(/Е/g,'E').replace(/Ё/g,'Yo').replace(/Ж/g,'Zh')
+      .replace(/З/g,'Z').replace(/И/g,'I').replace(/Й/g,'J').replace(/К/g,'K')
+      .replace(/Л/g,'L').replace(/М/g,'M').replace(/Н/g,'N').replace(/О/g,'O')
+      .replace(/П/g,'P').replace(/Р/g,'R').replace(/С/g,'S').replace(/Т/g,'T')
+      .replace(/У/g,'U').replace(/Ф/g,'F').replace(/Х/g,'Kh').replace(/Ц/g,'Ts')
+      .replace(/Ч/g,'Ch').replace(/Ш/g,'Sh').replace(/Щ/g,'Shch').replace(/Ъ/g,"'")
+      .replace(/Ы/g,'Y').replace(/Ь/g,"'").replace(/Э/g,'E').replace(/Ю/g,'Yu')
+      .replace(/Я/g,'Ya')
+      .replace(/а/g,'a').replace(/б/g,'b').replace(/в/g,'v').replace(/г/g,'g')
+      .replace(/д/g,'d').replace(/е/g,'e').replace(/ё/g,'yo').replace(/ж/g,'zh')
+      .replace(/з/g,'z').replace(/и/g,'i').replace(/й/g,'j').replace(/к/g,'k')
+      .replace(/л/g,'l').replace(/м/g,'m').replace(/н/g,'n').replace(/о/g,'o')
+      .replace(/п/g,'p').replace(/р/g,'r').replace(/с/g,'s').replace(/т/g,'t')
+      .replace(/у/g,'u').replace(/ф/g,'f').replace(/х/g,'kh').replace(/ц/g,'ts')
+      .replace(/ч/g,'ch').replace(/ш/g,'sh').replace(/щ/g,'shch').replace(/ъ/g,"'")
+      .replace(/ы/g,'y').replace(/ь/g,"'").replace(/э/g,'e').replace(/ю/g,'yu')
+      .replace(/я/g,'ya');
+
+    const fmt = n => n.toLocaleString('ru-RU');
     const hasTarget  = S.format.has('target')  || S.format.has('complex');
     const hasContent = S.format.has('content') || S.format.has('complex');
-    const acLbl = S.adaccount==='clean' ? 'Чистый, без блокировок' : S.adaccount==='blocked' ? 'Были блокировки' : 'Нет аккаунта / создаём с нуля';
+    const fmtLbl = [...S.format].map(f=>f==='target'?'Target':f==='content'?'Content':'Complex').join(' + ');
 
-    const COLORS = ['#2B5CE6','#1B8A5A','#8B5CF6','#C4570A','#0891B2','#DC2626'];
+    const PW = 210, ML = 14, MR = 14, CW = PW - ML - MR;
+    let y = 16;
+
+    const newPage = () => { doc.addPage(); y = 16; };
+    const checkY = (need) => { if (y + need > 280) newPage(); };
+
+    const line = (x1,y1,x2,y2,color='#CCCCCC') => {
+      doc.setDrawColor(color);
+      doc.setLineWidth(0.3);
+      doc.line(x1,y1,x2,y2);
+    };
+
+    const rect = (x,iy,w,h,fill) => {
+      const hex = fill.replace('#','');
+      const rr = parseInt(hex.slice(0,2),16), gg = parseInt(hex.slice(2,4),16), bb = parseInt(hex.slice(4,6),16);
+      doc.setFillColor(rr,gg,bb);
+      doc.rect(x,iy,w,h,'F');
+    };
+
+    const txt = (str, x, iy, size=10, bold=false, color='#222222', align='left') => {
+      doc.setFontSize(size);
+      doc.setFont('helvetica', bold?'bold':'normal');
+      const hex = color.replace('#','');
+      doc.setTextColor(parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16));
+      doc.text(tr(str), x, iy, { align });
+    };
+
+    const row2 = (left, right, iy, alt=false) => {
+      if (alt) rect(ML, iy-5, CW, 7, '#F8F8F8');
+      txt(left,  ML+2, iy, 9, false, '#555555');
+      txt(right, PW-MR-2, iy, 9, true, '#111111', 'right');
+      line(ML, iy+2, PW-MR, iy+2);
+    };
+
+    // ── HEADER ──────────────────────────────────────
+    txt('DISKURS', ML, y, 8, true, '#AAAAAA');
+    txt(ds, PW-MR, y, 8, false, '#888888', 'right');
+    y += 5;
+
+    const title = S.projectName
+      ? tr('Raschet sebestoimosti: ' + S.projectName)
+      : 'Raschet sebestoimosti proekta';
+    txt(title, ML, y, 16, true, '#111111');
+    y += 4;
+    txt('Format: ' + fmtLbl, ML, y, 9, false, '#888888');
+    y += 3;
+    line(ML, y, PW-MR, y, '#CCCCCC');
+    y += 8;
+
+    // ── PRICE BOX ────────────────────────────────────
+    rect(ML, y, CW, 26, '#1A1916');
+    txt('MIN. PRODAZHNAYA TSENA', ML+4, y+6, 7, true, '#888888');
+    txt(fmt(r.minSalePrice) + ' T', ML+4, y+17, 20, true, '#FFFFFF');
+    txt('tenge/mes  *  marzha ' + Math.round(r.margin*100) + '%  *  operat. raskhody uchtenY', ML+4, y+23, 7, false, '#888888');
+    y += 31;
+
+    // ── 4 SUMMARY CARDS ──────────────────────────────
+    const cards = [
+      ['Sebestoimost (trud)',  fmt(r.laborTotal)    + ' T'],
+      ['Operat. raskhody',    fmt(r.opsPerProject) + ' T'],
+      ['Dop. uslugi (fiks.)', r.fixedExtra ? fmt(r.fixedExtra)+' T' : '—'],
+      ['Vsego chasov/mes',    r.totalHours.toFixed(0) + ' ch'],
+    ];
+    const cw4 = (CW - 9) / 4;
+    cards.forEach((c,i) => {
+      const cx = ML + i*(cw4+3);
+      rect(cx, y, cw4, 14, '#F5F4F0');
+      doc.setDrawColor('#DDDDDD'); doc.setLineWidth(0.2); doc.rect(cx,y,cw4,14);
+      txt(c[0], cx+2, y+5,  7, false, '#888888');
+      txt(c[1], cx+2, y+11, 10, true, '#111111');
+    });
+    y += 19;
+
+    // ── BREAKDOWN ────────────────────────────────────
+    rect(ML, y, CW, 7, '#EDECEA');
+    txt('RAZBIRKA PO OTDELAM', ML+2, y+5, 7, true, '#666666');
+    y += 7;
+
     const depts = [
-      {l:'Таргет',     h:r.h.target,  c:r.cost.target,  col:COLORS[0]},
-      {l:'Контент',    h:r.h.content, c:r.cost.content, col:COLORS[1]},
-      {l:'Дизайн',    h:r.h.design,  c:r.cost.design,  col:COLORS[2]},
-      {l:'Проджект',   h:r.h.project, c:r.cost.project, col:COLORS[3]},
-      {l:'Мобилограф', h:r.h.mobile,  c:r.cost.mobile,  col:COLORS[4]},
-      {l:'Видеограф',  h:r.h.video,   c:r.cost.video,   col:COLORS[5]},
+      {l:'Target',     h:r.h.target,  c:r.cost.target,  col:'#2B5CE6'},
+      {l:'Content',    h:r.h.content, c:r.cost.content, col:'#1B8A5A'},
+      {l:'Dizajn',    h:r.h.design,  c:r.cost.design,  col:'#8B5CF6'},
+      {l:'Prodzhekt',  h:r.h.project, c:r.cost.project, col:'#C4570A'},
+      {l:'Mobilograf', h:r.h.mobile,  c:r.cost.mobile,  col:'#0891B2'},
+      {l:'Videograf',  h:r.h.video,   c:r.cost.video,   col:'#DC2626'},
     ].filter(d => d.c > 0);
 
+    depts.forEach((d,i) => {
+      checkY(8);
+      if (i%2===0) rect(ML, y, CW, 8, '#FAFAFA');
+      const hex = d.col.replace('#','');
+      doc.setFillColor(parseInt(hex.slice(0,2),16),parseInt(hex.slice(2,4),16),parseInt(hex.slice(4,6),16));
+      doc.circle(ML+4, y+4, 1.5, 'F');
+      txt(d.l,                   ML+9,    y+5.5, 10, false, '#222222');
+      txt(d.h.toFixed(1)+' ch',  ML+50,   y+5.5, 8,  false, '#AAAAAA');
+      txt(fmt(d.c)+' T',         PW-MR-2, y+5.5, 10, true,  '#222222', 'right');
+      line(ML, y+8, PW-MR, y+8);
+      y += 8;
+    });
+
+    if (r.opsPerProject) {
+      checkY(8);
+      rect(ML,y,CW,8,'#FAFAFA');
+      doc.setFillColor(153,153,153); doc.circle(ML+4,y+4,1.5,'F');
+      txt('Operat. raskhody', ML+9, y+5.5, 10, false, '#666666');
+      txt(fmt(r.opsPerProject)+' T', PW-MR-2, y+5.5, 10, true, '#222222','right');
+      line(ML,y+8,PW-MR,y+8); y+=8;
+    }
+    if (r.fixedExtra) {
+      checkY(8);
+      doc.setFillColor(236,72,153); doc.circle(ML+4,y+4,1.5,'F');
+      txt('Dop. uslugi (fiks.)', ML+9, y+5.5, 10, false, '#666666');
+      txt(fmt(r.fixedExtra)+' T', PW-MR-2, y+5.5, 10, true, '#222222','right');
+      line(ML,y+8,PW-MR,y+8); y+=8;
+    }
+
+    checkY(10);
+    rect(ML, y, CW, 10, '#EEF2FD');
+    txt('ITOGO SEBESTOIMOST', ML+9, y+7, 11, true, '#111111');
+    txt(fmt(r.totalCost)+' T', PW-MR-2, y+7, 11, true, '#2B5CE6', 'right');
+    y += 15;
+
+    // ── WHAT WAS CHOSEN ──────────────────────────────
+    checkY(10);
+    rect(ML, y, CW, 7, '#E8F5EE');
+    txt('CHTO BYLO VYBRANO', ML+2, y+5, 7, true, '#1B8A5A');
+    y += 7;
+
+    const acLbl = S.adaccount==='clean'?'Chistyj (bez blokirovok)':S.adaccount==='blocked'?'Byli blokirovki':'Net akkaunta / sozdaem s nulya';
+
     const inputRows = [
-      ['Формат работы', fmtLbl],
-      hasTarget  && ['Рекламный аккаунт', acLbl],
-      hasTarget  && S.static_creatives > 0 && ['Статичных креативов', S.static_creatives + ' шт'],
-      hasTarget  && S.video_creatives > 0  && ['Видеокреативов', S.video_creatives + ' шт'],
-      hasTarget  && (S.scen_target_simple+S.scen_target_med+S.scen_target_hard > 0) &&
-        ['Сценарии таргетолога', 'простые: '+S.scen_target_simple+', средние: '+S.scen_target_med+', сложные: '+S.scen_target_hard],
-      hasTarget  && S.tiktok    && ['TikTok Ads', 'Да'],
-      hasTarget  && S.context   && ['Контекстная реклама', 'Да'],
-      hasTarget  && S.analytics && ['Сквозная аналитика', S.analytics_type==='basic' ? 'Базовая' : 'Дашборд (+100 000 T)'],
-      hasTarget  && S.lang_kz   && ['Реклама на казахском', 'Да'],
-      hasContent && S.posts > 0           && ['Постов', S.posts + ' шт'],
-      hasContent && S.stories_static > 0  && ['Сторис (статика)', S.stories_static + ' шт'],
-      hasContent && S.stories_anim > 0    && ['Сторис (анимация)', S.stories_anim + ' шт'],
-      hasContent && S.video_content > 0   && ['Видео для контента', S.video_content + ' шт'],
-      hasContent && (S.scen_content_simple+S.scen_content_med+S.scen_content_hard > 0) &&
-        ['Сценарии контентщика', 'простые: '+S.scen_content_simple+', средние: '+S.scen_content_med+', сложные: '+S.scen_content_hard],
-      S.use_mobile  && ['Мобилограф', S.shoot_days_mobile+' дн. / '+(S.mobile_location==='office'?'офис':S.mobile_location==='onsite'?'выезд':'другой город')],
-      S.use_video   && ['Видеограф',  S.shoot_days_video +' дн. / '+(S.video_location==='office' ?'офис':S.video_location==='onsite' ?'выезд':'другой город')],
-      (S.use_mobile||S.use_video) && ['Сложность монтажа', S.montage_quality==='good'?'Хорошие исходники':S.montage_quality==='bad'?'Плохие исходники':'Сложный монтаж'],
-      S.ai_video && ['ИИ-ролики', '+100 000 T фиксировано'],
-      S.taplink  && ['Таплинк', 'Да'],
-      S.landing  && ['Лендинг на Tilda', 'Да'],
-      S.logo     && ['Логотип / оформление', 'Да'],
-      S.giveaway && ['Розыгрыши', 'Да'],
+      ['Format raboty', fmtLbl],
+      hasTarget && ['Reklamnyi akkaunt', acLbl],
+      hasTarget && S.static_creatives>0 && ['Statichnyh kreativov', S.static_creatives+' sht'],
+      hasTarget && S.video_creatives>0  && ['Videokreativov', S.video_creatives+' sht'],
+      hasTarget && (S.scen_target_simple+S.scen_target_med+S.scen_target_hard>0) &&
+        ['Stsenarii targetologa', 'prost:'+S.scen_target_simple+' sred:'+S.scen_target_med+' slozh:'+S.scen_target_hard],
+      hasTarget && S.tiktok   && ['TikTok Ads', 'Da'],
+      hasTarget && S.context  && ['Kontekstnaya reklama', 'Da'],
+      hasTarget && S.analytics && ['Skvoznaya analitika', S.analytics_type==='basic'?'Bazovaya':'Dashboard (+100 000 T)'],
+      hasTarget && S.lang_kz  && ['Reklama na kazakhskom', 'Da'],
+      hasContent && S.posts>0           && ['Postov', S.posts+' sht'],
+      hasContent && S.stories_static>0  && ['Storis (statika)', S.stories_static+' sht'],
+      hasContent && S.stories_anim>0    && ['Storis (animatsiya)', S.stories_anim+' sht'],
+      hasContent && S.video_content>0   && ['Video dlya kontenta', S.video_content+' sht'],
+      hasContent && (S.scen_content_simple+S.scen_content_med+S.scen_content_hard>0) &&
+        ['Stsenarii kontentshchika', 'prost:'+S.scen_content_simple+' sred:'+S.scen_content_med+' slozh:'+S.scen_content_hard],
+      S.use_mobile && ['Mobilograf', S.shoot_days_mobile+' dn. / '+(S.mobile_location==='office'?'ofis':S.mobile_location==='onsite'?'vyezd':'drugoj gorod')],
+      S.use_video  && ['Videograf',  S.shoot_days_video +' dn. / '+(S.video_location==='office'?'ofis':S.video_location==='onsite'?'vyezd':'drugoj gorod')],
+      (S.use_mobile||S.use_video) && ['Slozhnost montazha', S.montage_quality==='good'?'Khoroshie ishodniki':S.montage_quality==='bad'?'Plokhie ishodniki':'Slozhnyj montazh'],
+      S.ai_video && ['AI-roliki', '+100 000 T'],
+      S.taplink  && ['Taplink', 'Da'],
+      S.landing  && ['Lending na Tilda', 'Da'],
+      S.logo     && ['Logotip / oformlenie', 'Da'],
+      S.giveaway && ['Rozygryshi', 'Da'],
     ].filter(Boolean);
 
-    // Строим PDF прямо через DOM
-    const fmt = n => n.toLocaleString('ru-RU');
+    inputRows.forEach(([k,v], i) => {
+      checkY(8);
+      row2(k, v, y+5.5, i%2===0);
+      y += 7;
+    });
+    y += 4;
+
+    // ── FLAGS ─────────────────────────────────────────
+    if (r.flags.length) {
+      checkY(14 + r.flags.length * 7);
+      rect(ML, y, CW, 7 + r.flags.length*7, '#FEF0E6');
+      doc.setDrawColor('#F0C090'); doc.setLineWidth(0.3); doc.rect(ML,y,CW,7+r.flags.length*7);
+      txt('OBRATI VNIMANIE', ML+3, y+5, 7, true, '#C4570A');
+      y += 7;
+      r.flags.forEach(f => {
+        txt('-> ' + tr(f), ML+3, y+4, 8, false, '#885500');
+        y += 7;
+      });
+      y += 3;
+    }
+
+    // ── FOOTER on all pages ───────────────────────────
+    const total = doc.getNumberOfPages();
+    for (let p = 1; p <= total; p++) {
+      doc.setPage(p);
+      rect(0, 287, PW, 10, '#F5F4F0');
+      txt('DISKURS - Kalkulator sebestoimosti', ML, 293, 7.5, false, '#AAAAAA');
+      txt('Raschet ot ' + ds, PW-MR, 293, 7.5, false, '#AAAAAA', 'right');
+    }
 
     const safeName = S.projectName ? '_' + S.projectName.replace(/[^a-zA-Z0-9]/g,'_').slice(0,20) : '';
-    const filename = 'DISKURS_Расчет' + safeName + '_' + now.toLocaleDateString('ru-RU').replace(/\./g,'-') + '.pdf';
-
-    // Вставляем контент прямо в body — видимым, но за пределами экрана
-    const wrapper = document.createElement('div');
-    wrapper.id = 'pdf-wrapper';
-    wrapper.style.cssText = [
-      'position:absolute',
-      'top:0',
-      'left:0',
-      'width:794px',      // ~210mm при 96dpi
-      'background:#fff',
-      'z-index:-1',
-      'font-family:Arial,Helvetica,sans-serif',
-      'font-size:11px',
-      'color:#1a1916',
-      'line-height:1.4',
-      'padding:40px',
-    ].join(';');
-
-    // Полностью inline-стили, никаких классов и внешних зависимостей
-    const fmt = n => n.toLocaleString('ru-RU');
-
-    wrapper.innerHTML = `
-      <style>
-        #pdf-wrapper * { box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; }
-      </style>
-
-      <!-- ШАПКА -->
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:2px solid #dddbd6;margin-bottom:16px;">
-        <div>
-          <div style="font-size:9px;font-weight:700;letter-spacing:3px;color:#a09e9a;text-transform:uppercase;margin-bottom:5px;">DISKURS</div>
-          <div style="font-size:20px;font-weight:800;color:#1a1916;">Расчет себестоимости${S.projectName ? ': ' + S.projectName : ''}</div>
-        </div>
-        <div style="text-align:right;font-size:10px;color:#6b6860;">
-          <div>${ds}</div>
-          <div style="margin-top:3px;color:#a09e9a;">Формат: ${fmtLbl}</div>
-        </div>
-      </div>
-
-      <!-- ЦЕНА -->
-      <div style="background:#1a1916;border-radius:8px;padding:18px 22px;margin-bottom:14px;color:#fff;">
-        <div style="font-size:8px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#888;margin-bottom:8px;">МИНИМАЛЬНАЯ ЦЕНА ПРОДАЖИ</div>
-        <div style="font-size:36px;font-weight:700;margin-bottom:5px;">${fmt(r.minSalePrice)} T</div>
-        <div style="font-size:9px;color:#888;">тенге / месяц &nbsp; маржа ${Math.round(r.margin*100)}% &nbsp; операционные расходы учтены</div>
-      </div>
-
-      <!-- 4 КАРТОЧКИ -->
-      <div style="display:flex;gap:8px;margin-bottom:14px;">
-        ${[
-          ['Себестоимость (труд)',    fmt(r.laborTotal)    + ' T'],
-          ['Операционные расходы',   fmt(r.opsPerProject) + ' T'],
-          ['Доп. услуги (фикс.)',    r.fixedExtra ? fmt(r.fixedExtra) + ' T' : '—'],
-          ['Всего часов / месяц',    r.totalHours.toFixed(0) + ' ч'],
-        ].map(([l,v]) => `
-          <div style="flex:1;padding:10px 12px;background:#f5f4f0;border:1px solid #dddbd6;border-radius:6px;">
-            <div style="font-size:8px;color:#6b6860;margin-bottom:4px;">${l}</div>
-            <div style="font-size:13px;font-weight:700;">${v}</div>
-          </div>`).join('')}
-      </div>
-
-      <!-- РАЗБИВКА ПО ОТДЕЛАМ -->
-      <div style="border:1px solid #dddbd6;border-radius:6px;overflow:hidden;margin-bottom:12px;">
-        <div style="padding:8px 14px;background:#edecea;font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#6b6860;">РАЗБИВКА ПО ОТДЕЛАМ</div>
-        ${depts.map((d,i) => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid #f0eee9;background:${i%2===0?'#fafafa':'#fff'};">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <div style="width:8px;height:8px;border-radius:50%;background:${d.col};flex-shrink:0;"></div>
-              <span style="font-size:11px;">${d.l}</span>
-              <span style="font-size:9px;color:#a09e9a;">${d.h.toFixed(1)} ч/мес</span>
-            </div>
-            <div style="font-size:11px;font-weight:700;">${fmt(d.c)} T</div>
-          </div>`).join('')}
-        ${r.opsPerProject ? `
-          <div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #f0eee9;background:#fafafa;">
-            <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#999;flex-shrink:0;"></div><span style="font-size:11px;color:#6b6860;">Операционные расходы</span></div>
-            <div style="font-size:11px;font-weight:700;">${fmt(r.opsPerProject)} T</div>
-          </div>` : ''}
-        ${r.fixedExtra ? `
-          <div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #f0eee9;">
-            <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#ec4899;flex-shrink:0;"></div><span style="font-size:11px;color:#6b6860;">Доп. услуги (фиксировано)</span></div>
-            <div style="font-size:11px;font-weight:700;">${fmt(r.fixedExtra)} T</div>
-          </div>` : ''}
-        <div style="display:flex;justify-content:space-between;padding:10px 14px;background:#eef2fd;">
-          <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:#2b5ce6;flex-shrink:0;"></div><strong style="font-size:12px;">Итого себестоимость</strong></div>
-          <strong style="font-size:12px;color:#2b5ce6;">${fmt(r.totalCost)} T</strong>
-        </div>
-      </div>
-
-      <!-- ЧТО ВЫБРАНО -->
-      <div style="border:1px solid #dddbd6;border-radius:6px;overflow:hidden;margin-bottom:12px;">
-        <div style="padding:8px 14px;background:#e8f5ee;font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#1b8a5a;">ЧТО БЫЛО ВЫБРАНО</div>
-        ${inputRows.map(([k,v],i) => `
-          <div style="display:flex;justify-content:space-between;padding:7px 14px;border-bottom:1px solid #f0eee9;background:${i%2===0?'#fafaf9':'#fff'};">
-            <span style="font-size:10px;color:#6b6860;">${k}</span>
-            <span style="font-size:10px;font-weight:600;text-align:right;max-width:55%;">${v}</span>
-          </div>`).join('')}
-      </div>
-
-      ${r.flags.length ? `
-      <div style="padding:12px 14px;background:#fef0e6;border:1px solid rgba(196,87,10,0.3);border-radius:6px;margin-bottom:12px;">
-        <div style="font-size:8px;font-weight:700;color:#c4570a;text-transform:uppercase;margin-bottom:6px;">Обрати внимание</div>
-        ${r.flags.map(f=>`<div style="font-size:10px;color:#6b6860;padding:2px 0;">-> ${f}</div>`).join('')}
-      </div>` : ''}
-
-      <!-- ФУТЕР -->
-      <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid #dddbd6;font-size:8px;color:#a09e9a;margin-top:8px;">
-        <span>DISKURS — Калькулятор себестоимости</span>
-        <span>Расчет от ${ds}</span>
-      </div>
-    `;
-
-    document.body.appendChild(wrapper);
-
-    // Даём браузеру время отрендерить DOM
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    await html2pdf().set({
-      margin: 0,
-      filename,
-      image: { type: 'jpeg', quality: 0.97 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        width: 794,
-        windowWidth: 794,
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: 'avoid-all' }
-    }).from(wrapper).save();
-
-    document.body.removeChild(wrapper);
+    doc.save('DISKURS_Raschet' + safeName + '_' + now.toLocaleDateString('ru-RU').replace(/\./g,'-') + '.pdf');
 
   } catch(e) {
     console.error('PDF error:', e);
-    alert('Ошибка генерации PDF: ' + e.message);
+    alert('Oshibka generatsii PDF: ' + e.message);
   }
 
-  btn.textContent = '✅ Готово!';
+  btn.textContent = '✅ Gotovo!';
   btn.disabled = false;
-  setTimeout(() => btn.textContent = '📄 Скачать PDF', 2500);
+  setTimeout(() => btn.textContent = '📄 Skachat PDF', 2500);
 }
 
 // INIT
