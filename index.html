@@ -1056,259 +1056,203 @@ function copyResult() {
 }
 
 // ════════════════════════════════════════════════
-// PDF — программная генерация через jsPDF
+// PDF
 // ════════════════════════════════════════════════
 async function exportPDF() {
   const btn = document.querySelector('.btn-pdf');
-  btn.textContent='⏳ Генерирую...'; btn.disabled=true;
+  btn.textContent = '⏳ Генерирую...';
+  btn.disabled = true;
 
-  // Загружаем jsPDF
-  if (!window.jspdf) {
-    await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
-  }
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
-  const PW = 210; // page width mm
-  const PH = 297; // page height mm
-  const ML = 14;  // margin left
-  const MR = 14;  // margin right
-  const CW = PW - ML - MR; // content width
-  let y = 0; // current Y position
-
-  const now = new Date();
-  const ds = now.toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
-  const r = calcCost();
-  const projectName = S.projectName || '';
-  const fmtLbl = [...S.format].map(f=>f==='target'?'Таргет':f==='content'?'Контент':'Комплекс').join(' + ');
-  const hasTarget  = S.format.has('target')  || S.format.has('complex');
-  const hasContent = S.format.has('content') || S.format.has('complex');
-  const acLbl = S.adaccount==='clean'?'Чистый (без блокировок)':S.adaccount==='blocked'?'Были блокировки':'Нет аккаунта / создаём с нуля';
-
-  // ── Helpers ───────────────────────────────────
-  function checkPage(need) {
-    if (y + need > PH - 14) { doc.addPage(); y = 14; }
-  }
-
-  function hline(col='#DDDBD6') {
-    doc.setDrawColor(col);
-    doc.setLineWidth(0.3);
-    doc.line(ML, y, PW-MR, y);
-  }
-
-  function fillRect(x, iy, w, h, hex) {
-    const rgb = hexToRgb(hex);
-    doc.setFillColor(rgb.r, rgb.g, rgb.b);
-    doc.rect(x, iy, w, h, 'F');
-  }
-
-  function hexToRgb(hex) {
-    const r = parseInt(hex.slice(1,3),16);
-    const g = parseInt(hex.slice(3,5),16);
-    const b = parseInt(hex.slice(5,7),16);
-    return {r,g,b};
-  }
-
-  function circle(x, iy, r2, hex) {
-    const rgb = hexToRgb(hex);
-    doc.setFillColor(rgb.r, rgb.g, rgb.b);
-    doc.circle(x, iy, r2, 'F');
-  }
-
-  function text(str, x, iy, opts={}) {
-    const { size=10, bold=false, color='#1A1916', align='left', maxWidth } = opts;
-    doc.setFontSize(size);
-    doc.setFont('helvetica', bold ? 'bold' : 'normal');
-    const rgb = hexToRgb(color);
-    doc.setTextColor(rgb.r, rgb.g, rgb.b);
-    if (maxWidth) {
-      doc.text(str, x, iy, { align, maxWidth });
-    } else {
-      doc.text(str, x, iy, { align });
+  try {
+    // Загружаем html2pdf
+    if (!window.html2pdf) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
     }
+
+    const now = new Date();
+    const ds = now.toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
+    const r = calcCost();
+    const fmtLbl = [...S.format].map(f => f==='target'?'Таргет':f==='content'?'Контент':'Комплекс').join(' + ');
+    const hasTarget  = S.format.has('target')  || S.format.has('complex');
+    const hasContent = S.format.has('content') || S.format.has('complex');
+    const acLbl = S.adaccount==='clean' ? 'Чистый, без блокировок' : S.adaccount==='blocked' ? 'Были блокировки' : 'Нет аккаунта / создаём с нуля';
+
+    const COLORS = ['#2B5CE6','#1B8A5A','#8B5CF6','#C4570A','#0891B2','#DC2626'];
+    const depts = [
+      {l:'Таргет',     h:r.h.target,  c:r.cost.target,  col:COLORS[0]},
+      {l:'Контент',    h:r.h.content, c:r.cost.content, col:COLORS[1]},
+      {l:'Дизайн',    h:r.h.design,  c:r.cost.design,  col:COLORS[2]},
+      {l:'Проджект',   h:r.h.project, c:r.cost.project, col:COLORS[3]},
+      {l:'Мобилограф', h:r.h.mobile,  c:r.cost.mobile,  col:COLORS[4]},
+      {l:'Видеограф',  h:r.h.video,   c:r.cost.video,   col:COLORS[5]},
+    ].filter(d => d.c > 0);
+
+    const inputRows = [
+      ['Формат работы', fmtLbl],
+      hasTarget  && ['Рекламный аккаунт', acLbl],
+      hasTarget  && S.static_creatives > 0 && ['Статичных креативов', S.static_creatives + ' шт'],
+      hasTarget  && S.video_creatives > 0  && ['Видеокреативов', S.video_creatives + ' шт'],
+      hasTarget  && (S.scen_target_simple+S.scen_target_med+S.scen_target_hard > 0) &&
+        ['Сценарии таргетолога', 'простые: '+S.scen_target_simple+', средние: '+S.scen_target_med+', сложные: '+S.scen_target_hard],
+      hasTarget  && S.tiktok    && ['TikTok Ads', 'Да'],
+      hasTarget  && S.context   && ['Контекстная реклама', 'Да'],
+      hasTarget  && S.analytics && ['Сквозная аналитика', S.analytics_type==='basic' ? 'Базовая' : 'Дашборд (+100 000 T)'],
+      hasTarget  && S.lang_kz   && ['Реклама на казахском', 'Да'],
+      hasContent && S.posts > 0           && ['Постов', S.posts + ' шт'],
+      hasContent && S.stories_static > 0  && ['Сторис (статика)', S.stories_static + ' шт'],
+      hasContent && S.stories_anim > 0    && ['Сторис (анимация)', S.stories_anim + ' шт'],
+      hasContent && S.video_content > 0   && ['Видео для контента', S.video_content + ' шт'],
+      hasContent && (S.scen_content_simple+S.scen_content_med+S.scen_content_hard > 0) &&
+        ['Сценарии контентщика', 'простые: '+S.scen_content_simple+', средние: '+S.scen_content_med+', сложные: '+S.scen_content_hard],
+      S.use_mobile  && ['Мобилограф', S.shoot_days_mobile+' дн. / '+(S.mobile_location==='office'?'офис':S.mobile_location==='onsite'?'выезд':'другой город')],
+      S.use_video   && ['Видеограф',  S.shoot_days_video +' дн. / '+(S.video_location==='office' ?'офис':S.video_location==='onsite' ?'выезд':'другой город')],
+      (S.use_mobile||S.use_video) && ['Сложность монтажа', S.montage_quality==='good'?'Хорошие исходники':S.montage_quality==='bad'?'Плохие исходники':'Сложный монтаж'],
+      S.ai_video && ['ИИ-ролики', '+100 000 T фиксировано'],
+      S.taplink  && ['Таплинк', 'Да'],
+      S.landing  && ['Лендинг на Tilda', 'Да'],
+      S.logo     && ['Логотип / оформление', 'Да'],
+      S.giveaway && ['Розыгрыши', 'Да'],
+    ].filter(Boolean);
+
+    // Строим чистый HTML для PDF — только inline-стили, никаких внешних ресурсов
+    const css = `
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,Helvetica,sans-serif;color:#1a1916;font-size:11px;line-height:1.4}
+      .page{width:170mm;padding:0}
+      .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:10px;border-bottom:2px solid #dddbd6;margin-bottom:14px}
+      .logo{font-size:8px;font-weight:700;letter-spacing:0.2em;color:#a09e9a;text-transform:uppercase;margin-bottom:4px}
+      .title{font-size:17px;font-weight:800;color:#1a1916}
+      .meta{text-align:right;font-size:9px;color:#6b6860}
+      .price-box{background:#1a1916;border-radius:8px;padding:16px 20px;margin-bottom:12px;color:#fff}
+      .price-lbl{font-size:7px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#888;margin-bottom:6px}
+      .price-val{font-size:32px;font-weight:700;font-family:Courier,monospace;margin-bottom:3px}
+      .price-note{font-size:8px;color:#888}
+      .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+      .card{padding:9px 10px;background:#f5f4f0;border:1px solid #dddbd6;border-radius:6px}
+      .card-lbl{font-size:7px;color:#6b6860;margin-bottom:3px}
+      .card-val{font-size:12px;font-weight:700}
+      .section{background:#fff;border:1px solid #dddbd6;border-radius:6px;overflow:hidden;margin-bottom:10px}
+      .sec-head{padding:7px 12px;font-size:7px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase}
+      .sec-head.gray{background:#edecea;color:#6b6860}
+      .sec-head.green{background:#e8f5ee;color:#1b8a5a}
+      .bd-row{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid #f0eee9}
+      .bd-row:last-child{border-bottom:none}
+      .bd-row.total{background:#eef2fd;font-weight:700}
+      .bd-left{display:flex;align-items:center;gap:6px}
+      .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+      .bd-name{font-size:11px}
+      .bd-hrs{font-size:9px;color:#a09e9a;margin-left:4px}
+      .bd-amt{font-size:11px;font-weight:700;font-family:Courier,monospace;white-space:nowrap}
+      .inp-row{display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid #f0eee9;font-size:10px}
+      .inp-row:nth-child(odd){background:#fafaf9}
+      .inp-row:last-child{border-bottom:none}
+      .inp-key{color:#6b6860}
+      .inp-val{font-weight:600;text-align:right;max-width:55%}
+      .flag-box{padding:10px 12px;background:#fef0e6;border:1px solid rgba(196,87,10,0.25);border-radius:6px;margin-bottom:10px}
+      .flag-title{font-size:8px;font-weight:700;color:#c4570a;margin-bottom:5px;text-transform:uppercase}
+      .flag-item{font-size:9px;color:#6b6860;padding:2px 0}
+      .footer{display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid #dddbd6;font-size:8px;color:#a09e9a;margin-top:6px}
+    `;
+
+    const deptRowsHTML = depts.map(d => `
+      <div class="bd-row">
+        <div class="bd-left">
+          <div class="dot" style="background:${d.col}"></div>
+          <span class="bd-name">${d.l}</span>
+          <span class="bd-hrs">${d.h.toFixed(1)} ч/мес</span>
+        </div>
+        <div class="bd-amt">${d.c.toLocaleString('ru-RU')} T</div>
+      </div>`).join('') +
+      (r.opsPerProject ? `<div class="bd-row"><div class="bd-left"><div class="dot" style="background:#999"></div><span class="bd-name">Операционные расходы</span></div><div class="bd-amt">${r.opsPerProject.toLocaleString('ru-RU')} T</div></div>` : '') +
+      (r.fixedExtra    ? `<div class="bd-row"><div class="bd-left"><div class="dot" style="background:#ec4899"></div><span class="bd-name">Доп. услуги (фиксировано)</span></div><div class="bd-amt">${r.fixedExtra.toLocaleString('ru-RU')} T</div></div>` : '') +
+      `<div class="bd-row total"><div class="bd-left"><div class="dot" style="background:#2b5ce6"></div><span>Итого себестоимость</span></div><div class="bd-amt" style="color:#2b5ce6">${r.totalCost.toLocaleString('ru-RU')} T</div></div>`;
+
+    const inputRowsHTML = inputRows.map(([k,v]) => `
+      <div class="inp-row"><span class="inp-key">${k}</span><span class="inp-val">${v}</span></div>`).join('');
+
+    const flagsHTML = r.flags.length ? `
+      <div class="flag-box">
+        <div class="flag-title">Обрати внимание</div>
+        ${r.flags.map(f=>`<div class="flag-item">-> ${f}</div>`).join('')}
+      </div>` : '';
+
+    const projectLine = S.projectName ? ': ' + S.projectName : '';
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body><div class="page">
+      <div class="header">
+        <div>
+          <div class="logo">DISKURS</div>
+          <div class="title">Расчет себестоимости${projectLine}</div>
+        </div>
+        <div class="meta">
+          <div>${ds}</div>
+          <div style="margin-top:3px;color:#a09e9a">Формат: ${fmtLbl}</div>
+        </div>
+      </div>
+
+      <div class="price-box">
+        <div class="price-lbl">Минимальная цена продажи</div>
+        <div class="price-val">${r.minSalePrice.toLocaleString('ru-RU')} T</div>
+        <div class="price-note">тенге / месяц  *  маржа ${Math.round(r.margin*100)}%  *  операционные расходы учтены</div>
+      </div>
+
+      <div class="cards">
+        <div class="card"><div class="card-lbl">Себестоимость (труд)</div><div class="card-val">${r.laborTotal.toLocaleString('ru-RU')} T</div></div>
+        <div class="card"><div class="card-lbl">Операционные расходы</div><div class="card-val">${r.opsPerProject.toLocaleString('ru-RU')} T</div></div>
+        <div class="card"><div class="card-lbl">Доп. услуги (фикс.)</div><div class="card-val">${r.fixedExtra ? r.fixedExtra.toLocaleString('ru-RU')+' T' : '—'}</div></div>
+        <div class="card"><div class="card-lbl">Всего часов / месяц</div><div class="card-val">${r.totalHours.toFixed(0)} ч</div></div>
+      </div>
+
+      <div class="section">
+        <div class="sec-head gray">Разбивка по отделам</div>
+        ${deptRowsHTML}
+      </div>
+
+      <div class="section">
+        <div class="sec-head green">Что было выбрано</div>
+        ${inputRowsHTML}
+      </div>
+
+      ${flagsHTML}
+
+      <div class="footer">
+        <span>DISKURS — Калькулятор себестоимости</span>
+        <span>Расчет от ${ds}</span>
+      </div>
+    </div></body></html>`;
+
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;background:#fff;';
+    container.innerHTML = html;
+    document.body.appendChild(container);
+
+    const safeName = S.projectName ? '_' + S.projectName.replace(/[^a-zA-Z0-9]/g,'_').slice(0,20) : '';
+    const filename = 'DISKURS_Расчет' + safeName + '_' + now.toLocaleDateString('ru-RU').replace(/\./g,'-') + '.pdf';
+
+    await html2pdf().set({
+      margin: 20,
+      filename,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css'] }
+    }).from(container).save();
+
+    document.body.removeChild(container);
+
+  } catch(e) {
+    console.error('PDF error:', e);
+    alert('Ошибка генерации PDF. Попробуйте ещё раз.');
   }
 
-  function sectionHeader(label, bgHex, textHex) {
-    checkPage(10);
-    fillRect(ML, y, CW, 8, bgHex);
-    text(label.toUpperCase(), ML+3, y+5.5, { size:7.5, bold:true, color:textHex });
-    y += 8;
-  }
-
-  function twoColRow(left, right, isAlt, isLast=false) {
-    const rowH = 8;
-    checkPage(rowH + 1);
-    if (isAlt) fillRect(ML, y, CW, rowH, '#FAFAF9');
-    text(left,  ML+3,       y+5.5, { size:10, color:'#6B6860' });
-    text(right, PW-MR-3,   y+5.5, { size:10, bold:true, color:'#1A1916', align:'right' });
-    if (!isLast) {
-      doc.setDrawColor('#F0EEE9');
-      doc.setLineWidth(0.2);
-      doc.line(ML, y+rowH, PW-MR, y+rowH);
-    }
-    y += rowH;
-  }
-
-  // ── ШАПКА ─────────────────────────────────────
-  y = 16;
-  text('DISKURS', ML, y, { size:8, bold:true, color:'#A09E9A' });
-  text(ds, PW-MR, y, { size:9, color:'#6B6860', align:'right' });
-  y += 5;
-
-  const title = projectName ? `Расчёт себестоимости: ${projectName}` : 'Расчёт себестоимости';
-  text(title, ML, y, { size:15, bold:true, color:'#1A1916' });
-  y += 4;
-  text('Формат: ' + fmtLbl, ML, y, { size:9, color:'#6B6860' });
-  y += 5;
-
-  doc.setDrawColor('#DDDBD6');
-  doc.setLineWidth(0.5);
-  doc.line(ML, y, PW-MR, y);
-  y += 7;
-
-  // ── ТЁМНЫЙ БЛОК — ЦЕНА ────────────────────────
-  fillRect(ML, y, CW, 28, '#1A1916');
-  text('МИНИМАЛЬНАЯ ЦЕНА ПРОДАЖИ', ML+5, y+6, { size:7, bold:true, color:'rgba(255,255,255,0.5)' });
-  // jsPDF не поддерживает rgba — используем серый
-  text('МИНИМАЛЬНАЯ ЦЕНА ПРОДАЖИ', ML+5, y+6, { size:7, bold:true, color:'#888888' });
-  text(r.minSalePrice.toLocaleString('ru-RU') + ' ₸', ML+5, y+18, { size:22, bold:true, color:'#FFFFFF' });
-  text(`тенге / месяц  ·  маржа ${Math.round(r.margin*100)}%  ·  операционные расходы учтены`, ML+5, y+25, { size:7.5, color:'#888888' });
-  y += 33;
-
-  // ── 4 КАРТОЧКИ ────────────────────────────────
-  const cards = [
-    ['Себестоимость (труд)',     r.laborTotal.toLocaleString('ru-RU') + ' ₸'],
-    ['Операционные расходы',    r.opsPerProject.toLocaleString('ru-RU') + ' ₸'],
-    ['Доп. услуги (фиксировано)', r.fixedExtra ? r.fixedExtra.toLocaleString('ru-RU') + ' ₸' : '—'],
-    ['Всего часов / месяц',     r.totalHours.toFixed(0) + ' ч'],
-  ];
-  const cardW = (CW - 3*3) / 4;
-  cards.forEach((c,i) => {
-    const cx = ML + i*(cardW+3);
-    fillRect(cx, y, cardW, 16, '#F5F4F0');
-    doc.setDrawColor('#DDDBD6'); doc.setLineWidth(0.3);
-    doc.rect(cx, y, cardW, 16);
-    text(c[0], cx+3, y+5.5, { size:7.5, color:'#6B6860', maxWidth:cardW-6 });
-    text(c[1], cx+3, y+12, { size:10, bold:true, color:'#1A1916' });
-  });
-  y += 21;
-
-  // ── РАЗБИВКА ПО ОТДЕЛАМ ───────────────────────
-  const DEPT_COLORS = ['#2B5CE6','#1B8A5A','#8B5CF6','#C4570A','#0891B2','#DC2626'];
-  const depts = [
-    {l:'Таргет',    h:r.h.target,  c:r.cost.target },
-    {l:'Контент',   h:r.h.content, c:r.cost.content},
-    {l:'Дизайн',   h:r.h.design,  c:r.cost.design },
-    {l:'Проджект',  h:r.h.project, c:r.cost.project},
-    {l:'Мобилограф',h:r.h.mobile,  c:r.cost.mobile },
-    {l:'Видеограф', h:r.h.video,   c:r.cost.video  },
-  ].filter(d=>d.c>0);
-
-  sectionHeader('Разбивка по отделам', '#EDECEA', '#6B6860');
-  depts.forEach((d,i) => {
-    const rowH = 9;
-    checkPage(rowH);
-    if (i%2===0) fillRect(ML, y, CW, rowH, '#FAFAFA');
-    circle(ML+5, y+4.5, 1.5, DEPT_COLORS[i] || '#999');
-    text(d.l,                ML+9,     y+6, { size:10, color:'#1A1916' });
-    text(d.h.toFixed(1)+' ч/мес', ML+35, y+6, { size:8.5, color:'#A09E9A' });
-    text(d.c.toLocaleString('ru-RU')+' ₸', PW-MR-3, y+6, { size:10, bold:true, align:'right' });
-    doc.setDrawColor('#EDECEA'); doc.setLineWidth(0.2);
-    doc.line(ML, y+rowH, PW-MR, y+rowH);
-    y += rowH;
-  });
-  // Операционные
-  if (r.opsPerProject) {
-    checkPage(9);
-    circle(ML+5, y+4.5, 1.5, '#999999');
-    text('Операционные расходы', ML+9, y+6, { size:10, color:'#6B6860' });
-    text(r.opsPerProject.toLocaleString('ru-RU')+' ₸', PW-MR-3, y+6, { size:10, bold:true, align:'right' });
-    doc.setDrawColor('#EDECEA'); doc.setLineWidth(0.2);
-    doc.line(ML, y+9, PW-MR, y+9);
-    y += 9;
-  }
-  // Доп услуги
-  if (r.fixedExtra) {
-    checkPage(9);
-    circle(ML+5, y+4.5, 1.5, '#EC4899');
-    text('Доп. услуги (фиксировано)', ML+9, y+6, { size:10, color:'#6B6860' });
-    text(r.fixedExtra.toLocaleString('ru-RU')+' ₸', PW-MR-3, y+6, { size:10, bold:true, align:'right' });
-    doc.setDrawColor('#EDECEA'); doc.setLineWidth(0.2);
-    doc.line(ML, y+9, PW-MR, y+9);
-    y += 9;
-  }
-  // Итого
-  checkPage(10);
-  fillRect(ML, y, CW, 10, '#EEF2FD');
-  text('Итого себестоимость', ML+3, y+6.5, { size:11, bold:true, color:'#1A1916' });
-  text(r.totalCost.toLocaleString('ru-RU')+' ₸', PW-MR-3, y+6.5, { size:11, bold:true, align:'right', color:'#2B5CE6' });
-  y += 14;
-
-  // ── ЧТО БЫЛО ВЫБРАНО ─────────────────────────
-  sectionHeader('Что было выбрано', '#E8F5EE', '#1B8A5A');
-
-  const inputRows = [
-    ['Формат работы', fmtLbl],
-    hasTarget && ['Рекламный аккаунт', acLbl],
-    hasTarget && S.static_creatives > 0 && ['Статичных креативов', S.static_creatives + ' шт'],
-    hasTarget && S.video_creatives > 0  && ['Видеокреативов', S.video_creatives + ' шт'],
-    hasTarget && (S.scen_target_simple+S.scen_target_med+S.scen_target_hard > 0) &&
-      ['Сценарии таргетолога', `простые: ${S.scen_target_simple}, средние: ${S.scen_target_med}, сложные: ${S.scen_target_hard}`],
-    hasTarget && S.tiktok   && ['TikTok Ads', 'Да'],
-    hasTarget && S.context  && ['Контекстная реклама', 'Да'],
-    hasTarget && S.analytics && ['Сквозная аналитика', S.analytics_type==='basic'?'Базовая':'Дашборд (+100 000 ₸)'],
-    hasTarget && S.lang_kz  && ['Реклама на казахском', 'Да'],
-    hasContent && S.posts > 0          && ['Постов', S.posts + ' шт'],
-    hasContent && S.stories_static > 0 && ['Сторис (статика)', S.stories_static + ' шт'],
-    hasContent && S.stories_anim > 0   && ['Сторис (анимация)', S.stories_anim + ' шт'],
-    hasContent && S.video_content > 0  && ['Видео для контента', S.video_content + ' шт'],
-    hasContent && (S.scen_content_simple+S.scen_content_med+S.scen_content_hard > 0) &&
-      ['Сценарии контентщика', `простые: ${S.scen_content_simple}, средние: ${S.scen_content_med}, сложные: ${S.scen_content_hard}`],
-    S.use_mobile && ['Мобилограф', `${S.shoot_days_mobile} дн. · ${S.mobile_location==='office'?'в офисе':S.mobile_location==='onsite'?'выезд':'другой город'}`],
-    S.use_video  && ['Видеограф',  `${S.shoot_days_video} дн. · ${S.video_location==='office'?'в офисе':S.video_location==='onsite'?'выезд':'другой город'}`],
-    (S.use_mobile||S.use_video) && ['Сложность монтажа', S.montage_quality==='good'?'Хорошие исходники':S.montage_quality==='bad'?'Плохие исходники':'Сложный монтаж'],
-    S.ai_video && ['ИИ-ролики', '+100 000 ₸ фиксировано'],
-    S.taplink  && ['Таплинк', 'Да'],
-    S.landing  && ['Лендинг на Tilda', 'Да'],
-    S.logo     && ['Логотип / оформление', 'Да'],
-    S.giveaway && ['Розыгрыши', 'Да'],
-  ].filter(Boolean);
-
-  inputRows.forEach((row,i) => {
-    twoColRow(row[0], row[1], i%2===0, i===inputRows.length-1);
-  });
-  y += 4;
-
-  // ── ФЛАГИ ─────────────────────────────────────
-  if (r.flags.length) {
-    checkPage(18);
-    fillRect(ML, y, CW, r.flags.length*8+10, '#FEF0E6');
-    doc.setDrawColor('#F0C090'); doc.setLineWidth(0.3);
-    doc.rect(ML, y, CW, r.flags.length*8+10);
-    text('⚠ ОБРАТИ ВНИМАНИЕ', ML+4, y+6, { size:8, bold:true, color:'#C4570A' });
-    y += 9;
-    r.flags.forEach(f => {
-      text('→ ' + f, ML+4, y+5, { size:9, color:'#6B6860', maxWidth:CW-8 });
-      y += 7;
-    });
-    y += 4;
-  }
-
-  // ── ФУТЕР ─────────────────────────────────────
-  const totalPages = doc.getNumberOfPages();
-  for (let p=1; p<=totalPages; p++) {
-    doc.setPage(p);
-    fillRect(0, PH-10, PW, 10, '#F5F4F0');
-    text('DISKURS · Калькулятор себестоимости', ML, PH-4, { size:7.5, color:'#A09E9A' });
-    text(`Расчёт от ${ds}`, PW/2, PH-4, { size:7.5, color:'#A09E9A', align:'center' });
-    text(`${p} / ${totalPages}`, PW-MR, PH-4, { size:7.5, color:'#A09E9A', align:'right' });
-  }
-
-  const safeName = S.projectName ? '_' + S.projectName.replace(/[^а-яёa-z0-9]/gi,'_').slice(0,20) : '';
-  doc.save(`DISKURS_Расчет${safeName}_${now.toLocaleDateString('ru-RU').replace(/\./g,'-')}.pdf`);
-
-  btn.textContent='✅ Готово!'; btn.disabled=false;
-  setTimeout(()=>btn.textContent='📄 Скачать PDF',2500);
+  btn.textContent = '✅ Готово!';
+  btn.disabled = false;
+  setTimeout(() => btn.textContent = '📄 Скачать PDF', 2500);
 }
 
 // INIT
