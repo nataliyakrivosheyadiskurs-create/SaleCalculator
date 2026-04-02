@@ -1056,189 +1056,256 @@ function copyResult() {
 }
 
 // ════════════════════════════════════════════════
-// PDF — полный расчёт со всеми данными
+// PDF — программная генерация через jsPDF
 // ════════════════════════════════════════════════
 async function exportPDF() {
   const btn = document.querySelector('.btn-pdf');
   btn.textContent='⏳ Генерирую...'; btn.disabled=true;
 
+  // Загружаем jsPDF
+  if (!window.jspdf) {
+    await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+  const PW = 210; // page width mm
+  const PH = 297; // page height mm
+  const ML = 14;  // margin left
+  const MR = 14;  // margin right
+  const CW = PW - ML - MR; // content width
+  let y = 0; // current Y position
+
   const now = new Date();
   const ds = now.toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
   const r = calcCost();
-  const projectName = S.projectName || '—';
+  const projectName = S.projectName || '';
   const fmtLbl = [...S.format].map(f=>f==='target'?'Таргет':f==='content'?'Контент':'Комплекс').join(' + ');
   const hasTarget  = S.format.has('target')  || S.format.has('complex');
   const hasContent = S.format.has('content') || S.format.has('complex');
   const acLbl = S.adaccount==='clean'?'Чистый (без блокировок)':S.adaccount==='blocked'?'Были блокировки':'Нет аккаунта / создаём с нуля';
 
-  const COLORS = ['#2B5CE6','#1B8A5A','#8B5CF6','#C4570A','#0891B2','#DC2626'];
-  const depts = [
-    {l:'Таргет',    h:r.h.target,  c:r.cost.target,  color:COLORS[0]},
-    {l:'Контент',   h:r.h.content, c:r.cost.content, color:COLORS[1]},
-    {l:'Дизайн',   h:r.h.design,  c:r.cost.design,  color:COLORS[2]},
-    {l:'Проджект',  h:r.h.project, c:r.cost.project, color:COLORS[3]},
-    {l:'Мобилограф',h:r.h.mobile,  c:r.cost.mobile,  color:COLORS[4]},
-    {l:'Видеограф', h:r.h.video,   c:r.cost.video,   color:COLORS[5]},
+  // ── Helpers ───────────────────────────────────
+  function checkPage(need) {
+    if (y + need > PH - 14) { doc.addPage(); y = 14; }
+  }
+
+  function hline(col='#DDDBD6') {
+    doc.setDrawColor(col);
+    doc.setLineWidth(0.3);
+    doc.line(ML, y, PW-MR, y);
+  }
+
+  function fillRect(x, iy, w, h, hex) {
+    const rgb = hexToRgb(hex);
+    doc.setFillColor(rgb.r, rgb.g, rgb.b);
+    doc.rect(x, iy, w, h, 'F');
+  }
+
+  function hexToRgb(hex) {
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    return {r,g,b};
+  }
+
+  function circle(x, iy, r2, hex) {
+    const rgb = hexToRgb(hex);
+    doc.setFillColor(rgb.r, rgb.g, rgb.b);
+    doc.circle(x, iy, r2, 'F');
+  }
+
+  function text(str, x, iy, opts={}) {
+    const { size=10, bold=false, color='#1A1916', align='left', maxWidth } = opts;
+    doc.setFontSize(size);
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    const rgb = hexToRgb(color);
+    doc.setTextColor(rgb.r, rgb.g, rgb.b);
+    if (maxWidth) {
+      doc.text(str, x, iy, { align, maxWidth });
+    } else {
+      doc.text(str, x, iy, { align });
+    }
+  }
+
+  function sectionHeader(label, bgHex, textHex) {
+    checkPage(10);
+    fillRect(ML, y, CW, 8, bgHex);
+    text(label.toUpperCase(), ML+3, y+5.5, { size:7.5, bold:true, color:textHex });
+    y += 8;
+  }
+
+  function twoColRow(left, right, isAlt, isLast=false) {
+    const rowH = 8;
+    checkPage(rowH + 1);
+    if (isAlt) fillRect(ML, y, CW, rowH, '#FAFAF9');
+    text(left,  ML+3,       y+5.5, { size:10, color:'#6B6860' });
+    text(right, PW-MR-3,   y+5.5, { size:10, bold:true, color:'#1A1916', align:'right' });
+    if (!isLast) {
+      doc.setDrawColor('#F0EEE9');
+      doc.setLineWidth(0.2);
+      doc.line(ML, y+rowH, PW-MR, y+rowH);
+    }
+    y += rowH;
+  }
+
+  // ── ШАПКА ─────────────────────────────────────
+  y = 16;
+  text('DISKURS', ML, y, { size:8, bold:true, color:'#A09E9A' });
+  text(ds, PW-MR, y, { size:9, color:'#6B6860', align:'right' });
+  y += 5;
+
+  const title = projectName ? `Расчёт себестоимости: ${projectName}` : 'Расчёт себестоимости';
+  text(title, ML, y, { size:15, bold:true, color:'#1A1916' });
+  y += 4;
+  text('Формат: ' + fmtLbl, ML, y, { size:9, color:'#6B6860' });
+  y += 5;
+
+  doc.setDrawColor('#DDDBD6');
+  doc.setLineWidth(0.5);
+  doc.line(ML, y, PW-MR, y);
+  y += 7;
+
+  // ── ТЁМНЫЙ БЛОК — ЦЕНА ────────────────────────
+  fillRect(ML, y, CW, 28, '#1A1916');
+  text('МИНИМАЛЬНАЯ ЦЕНА ПРОДАЖИ', ML+5, y+6, { size:7, bold:true, color:'rgba(255,255,255,0.5)' });
+  // jsPDF не поддерживает rgba — используем серый
+  text('МИНИМАЛЬНАЯ ЦЕНА ПРОДАЖИ', ML+5, y+6, { size:7, bold:true, color:'#888888' });
+  text(r.minSalePrice.toLocaleString('ru-RU') + ' ₸', ML+5, y+18, { size:22, bold:true, color:'#FFFFFF' });
+  text(`тенге / месяц  ·  маржа ${Math.round(r.margin*100)}%  ·  операционные расходы учтены`, ML+5, y+25, { size:7.5, color:'#888888' });
+  y += 33;
+
+  // ── 4 КАРТОЧКИ ────────────────────────────────
+  const cards = [
+    ['Себестоимость (труд)',     r.laborTotal.toLocaleString('ru-RU') + ' ₸'],
+    ['Операционные расходы',    r.opsPerProject.toLocaleString('ru-RU') + ' ₸'],
+    ['Доп. услуги (фиксировано)', r.fixedExtra ? r.fixedExtra.toLocaleString('ru-RU') + ' ₸' : '—'],
+    ['Всего часов / месяц',     r.totalHours.toFixed(0) + ' ч'],
   ];
+  const cardW = (CW - 3*3) / 4;
+  cards.forEach((c,i) => {
+    const cx = ML + i*(cardW+3);
+    fillRect(cx, y, cardW, 16, '#F5F4F0');
+    doc.setDrawColor('#DDDBD6'); doc.setLineWidth(0.3);
+    doc.rect(cx, y, cardW, 16);
+    text(c[0], cx+3, y+5.5, { size:7.5, color:'#6B6860', maxWidth:cardW-6 });
+    text(c[1], cx+3, y+12, { size:10, bold:true, color:'#1A1916' });
+  });
+  y += 21;
 
-  // Строка таблицы разбивки
-  const deptRows = depts.filter(d=>d.c>0).map(d=>`
-    <tr>
-      <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
-        <span style="font-size:13px;">${d.l}</span>
-        <span style="font-size:10px;color:#A09E9A;margin-left:4px;">${d.h.toFixed(1)} ч/мес</span>
-      </td>
-      <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;text-align:right;font-size:13px;font-weight:700;font-family:monospace;white-space:nowrap;">${d.c.toLocaleString('ru-RU')} ₸</td>
-    </tr>`).join('');
+  // ── РАЗБИВКА ПО ОТДЕЛАМ ───────────────────────
+  const DEPT_COLORS = ['#2B5CE6','#1B8A5A','#8B5CF6','#C4570A','#0891B2','#DC2626'];
+  const depts = [
+    {l:'Таргет',    h:r.h.target,  c:r.cost.target },
+    {l:'Контент',   h:r.h.content, c:r.cost.content},
+    {l:'Дизайн',   h:r.h.design,  c:r.cost.design },
+    {l:'Проджект',  h:r.h.project, c:r.cost.project},
+    {l:'Мобилограф',h:r.h.mobile,  c:r.cost.mobile },
+    {l:'Видеограф', h:r.h.video,   c:r.cost.video  },
+  ].filter(d=>d.c>0);
 
-  // Данные расчёта для блока "Что выбрано"
+  sectionHeader('Разбивка по отделам', '#EDECEA', '#6B6860');
+  depts.forEach((d,i) => {
+    const rowH = 9;
+    checkPage(rowH);
+    if (i%2===0) fillRect(ML, y, CW, rowH, '#FAFAFA');
+    circle(ML+5, y+4.5, 1.5, DEPT_COLORS[i] || '#999');
+    text(d.l,                ML+9,     y+6, { size:10, color:'#1A1916' });
+    text(d.h.toFixed(1)+' ч/мес', ML+35, y+6, { size:8.5, color:'#A09E9A' });
+    text(d.c.toLocaleString('ru-RU')+' ₸', PW-MR-3, y+6, { size:10, bold:true, align:'right' });
+    doc.setDrawColor('#EDECEA'); doc.setLineWidth(0.2);
+    doc.line(ML, y+rowH, PW-MR, y+rowH);
+    y += rowH;
+  });
+  // Операционные
+  if (r.opsPerProject) {
+    checkPage(9);
+    circle(ML+5, y+4.5, 1.5, '#999999');
+    text('Операционные расходы', ML+9, y+6, { size:10, color:'#6B6860' });
+    text(r.opsPerProject.toLocaleString('ru-RU')+' ₸', PW-MR-3, y+6, { size:10, bold:true, align:'right' });
+    doc.setDrawColor('#EDECEA'); doc.setLineWidth(0.2);
+    doc.line(ML, y+9, PW-MR, y+9);
+    y += 9;
+  }
+  // Доп услуги
+  if (r.fixedExtra) {
+    checkPage(9);
+    circle(ML+5, y+4.5, 1.5, '#EC4899');
+    text('Доп. услуги (фиксировано)', ML+9, y+6, { size:10, color:'#6B6860' });
+    text(r.fixedExtra.toLocaleString('ru-RU')+' ₸', PW-MR-3, y+6, { size:10, bold:true, align:'right' });
+    doc.setDrawColor('#EDECEA'); doc.setLineWidth(0.2);
+    doc.line(ML, y+9, PW-MR, y+9);
+    y += 9;
+  }
+  // Итого
+  checkPage(10);
+  fillRect(ML, y, CW, 10, '#EEF2FD');
+  text('Итого себестоимость', ML+3, y+6.5, { size:11, bold:true, color:'#1A1916' });
+  text(r.totalCost.toLocaleString('ru-RU')+' ₸', PW-MR-3, y+6.5, { size:11, bold:true, align:'right', color:'#2B5CE6' });
+  y += 14;
+
+  // ── ЧТО БЫЛО ВЫБРАНО ─────────────────────────
+  sectionHeader('Что было выбрано', '#E8F5EE', '#1B8A5A');
+
   const inputRows = [
-    hasTarget  && ['Формат', fmtLbl],
-    hasTarget  && ['Рекламный аккаунт', acLbl],
-    hasTarget  && S.static_creatives > 0 && ['Статичных креативов', S.static_creatives + ' шт'],
-    hasTarget  && S.video_creatives > 0  && ['Видеокреативов', S.video_creatives + ' шт'],
-    hasTarget  && (S.scen_target_simple+S.scen_target_med+S.scen_target_hard > 0) && ['Сценарии (таргет)', `простые: ${S.scen_target_simple}, средние: ${S.scen_target_med}, сложные: ${S.scen_target_hard}`],
-    hasTarget  && S.tiktok   && ['TikTok Ads', 'Да'],
-    hasTarget  && S.context  && ['Контекстная реклама', 'Да'],
-    hasTarget  && S.analytics && ['Сквозная аналитика', S.analytics_type==='basic'?'Базовая':'Дашборд (+100 000 ₸)'],
-    hasTarget  && S.lang_kz  && ['Реклама на казахском', 'Да'],
-    hasContent && S.posts > 0           && ['Постов', S.posts + ' шт'],
-    hasContent && S.stories_static > 0  && ['Сторис статика', S.stories_static + ' шт'],
-    hasContent && S.stories_anim > 0    && ['Сторис анимация', S.stories_anim + ' шт'],
-    hasContent && S.video_content > 0   && ['Видео для контента', S.video_content + ' шт'],
-    hasContent && (S.scen_content_simple+S.scen_content_med+S.scen_content_hard > 0) && ['Сценарии (контент)', `простые: ${S.scen_content_simple}, средние: ${S.scen_content_med}, сложные: ${S.scen_content_hard}`],
-    S.use_mobile && ['Мобилограф', `${S.shoot_days_mobile} дн. · ${S.mobile_location==='office'?'в офисе':S.mobile_location==='onsite'?'выезд к клиенту':'другой город'}`],
-    S.use_video  && ['Видеограф',  `${S.shoot_days_video} дн. · ${S.video_location==='office'?'в офисе':S.video_location==='onsite'?'выезд к клиенту':'другой город'}`],
+    ['Формат работы', fmtLbl],
+    hasTarget && ['Рекламный аккаунт', acLbl],
+    hasTarget && S.static_creatives > 0 && ['Статичных креативов', S.static_creatives + ' шт'],
+    hasTarget && S.video_creatives > 0  && ['Видеокреативов', S.video_creatives + ' шт'],
+    hasTarget && (S.scen_target_simple+S.scen_target_med+S.scen_target_hard > 0) &&
+      ['Сценарии таргетолога', `простые: ${S.scen_target_simple}, средние: ${S.scen_target_med}, сложные: ${S.scen_target_hard}`],
+    hasTarget && S.tiktok   && ['TikTok Ads', 'Да'],
+    hasTarget && S.context  && ['Контекстная реклама', 'Да'],
+    hasTarget && S.analytics && ['Сквозная аналитика', S.analytics_type==='basic'?'Базовая':'Дашборд (+100 000 ₸)'],
+    hasTarget && S.lang_kz  && ['Реклама на казахском', 'Да'],
+    hasContent && S.posts > 0          && ['Постов', S.posts + ' шт'],
+    hasContent && S.stories_static > 0 && ['Сторис (статика)', S.stories_static + ' шт'],
+    hasContent && S.stories_anim > 0   && ['Сторис (анимация)', S.stories_anim + ' шт'],
+    hasContent && S.video_content > 0  && ['Видео для контента', S.video_content + ' шт'],
+    hasContent && (S.scen_content_simple+S.scen_content_med+S.scen_content_hard > 0) &&
+      ['Сценарии контентщика', `простые: ${S.scen_content_simple}, средние: ${S.scen_content_med}, сложные: ${S.scen_content_hard}`],
+    S.use_mobile && ['Мобилограф', `${S.shoot_days_mobile} дн. · ${S.mobile_location==='office'?'в офисе':S.mobile_location==='onsite'?'выезд':'другой город'}`],
+    S.use_video  && ['Видеограф',  `${S.shoot_days_video} дн. · ${S.video_location==='office'?'в офисе':S.video_location==='onsite'?'выезд':'другой город'}`],
     (S.use_mobile||S.use_video) && ['Сложность монтажа', S.montage_quality==='good'?'Хорошие исходники':S.montage_quality==='bad'?'Плохие исходники':'Сложный монтаж'],
-    S.ai_video  && ['ИИ-ролики', '+100 000 ₸ фиксировано'],
-    S.taplink   && ['Таплинк', 'Да'],
-    S.landing   && ['Лендинг на Tilda', 'Да'],
-    S.logo      && ['Логотип / оформление', 'Да'],
-    S.giveaway  && ['Розыгрыши', 'Да'],
+    S.ai_video && ['ИИ-ролики', '+100 000 ₸ фиксировано'],
+    S.taplink  && ['Таплинк', 'Да'],
+    S.landing  && ['Лендинг на Tilda', 'Да'],
+    S.logo     && ['Логотип / оформление', 'Да'],
+    S.giveaway && ['Розыгрыши', 'Да'],
   ].filter(Boolean);
 
-  const inputRowsHTML = inputRows.map(([k,v],i)=>`
-    <tr style="background:${i%2===0?'#FAFAF9':'#FFFFFF'}">
-      <td style="padding:8px 14px;font-size:12px;color:#6B6860;border-bottom:1px solid #F0EEE9;">${k}</td>
-      <td style="padding:8px 14px;font-size:12px;font-weight:600;text-align:right;border-bottom:1px solid #F0EEE9;">${v}</td>
-    </tr>`).join('');
+  inputRows.forEach((row,i) => {
+    twoColRow(row[0], row[1], i%2===0, i===inputRows.length-1);
+  });
+  y += 4;
 
-  const el = document.createElement('div');
-  el.style.cssText = 'font-family:Arial,sans-serif;padding:36px;max-width:720px;color:#1A1916;background:#fff;';
-  el.innerHTML = `
-    <!-- ШАПКА -->
-    <table width="100%" style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #E0DDD8;border-collapse:collapse;">
-      <tr>
-        <td>
-          <div style="font-size:10px;font-weight:700;letter-spacing:0.2em;color:#A09E9A;text-transform:uppercase;margin-bottom:5px;">DISKURS</div>
-          <div style="font-size:20px;font-weight:800;color:#1A1916;">Расчёт себестоимости${S.projectName ? ': ' + S.projectName : ''}</div>
-        </td>
-        <td style="text-align:right;vertical-align:top;">
-          <div style="font-size:11px;color:#6B6860;">${ds}</div>
-          <div style="font-size:11px;color:#A09E9A;margin-top:3px;">Формат: ${fmtLbl}</div>
-        </td>
-      </tr>
-    </table>
+  // ── ФЛАГИ ─────────────────────────────────────
+  if (r.flags.length) {
+    checkPage(18);
+    fillRect(ML, y, CW, r.flags.length*8+10, '#FEF0E6');
+    doc.setDrawColor('#F0C090'); doc.setLineWidth(0.3);
+    doc.rect(ML, y, CW, r.flags.length*8+10);
+    text('⚠ ОБРАТИ ВНИМАНИЕ', ML+4, y+6, { size:8, bold:true, color:'#C4570A' });
+    y += 9;
+    r.flags.forEach(f => {
+      text('→ ' + f, ML+4, y+5, { size:9, color:'#6B6860', maxWidth:CW-8 });
+      y += 7;
+    });
+    y += 4;
+  }
 
-    <!-- ЦЕНА -->
-    <div style="background:#1A1916;border-radius:10px;padding:22px 28px;margin-bottom:20px;color:#fff;">
-      <div style="font-size:9px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:6px;">МИНИМАЛЬНАЯ ЦЕНА ПРОДАЖИ</div>
-      <div style="font-size:40px;font-weight:700;font-family:monospace;margin-bottom:4px;">${r.minSalePrice.toLocaleString('ru-RU')} ₸</div>
-      <div style="font-size:11px;color:rgba(255,255,255,0.4);">тенге / месяц &nbsp;·&nbsp; маржа ${Math.round(r.margin*100)}% &nbsp;·&nbsp; операционные расходы учтены</div>
-    </div>
-
-    <!-- КАРТОЧКИ ИТОГОВ -->
-    <table width="100%" style="border-collapse:collapse;margin-bottom:20px;">
-      <tr>
-        ${[
-          ['Себестоимость (труд)', r.laborTotal.toLocaleString('ru-RU')+' ₸'],
-          ['Операционные расходы', r.opsPerProject.toLocaleString('ru-RU')+' ₸'],
-          ['Доп. услуги (фиксировано)', r.fixedExtra?r.fixedExtra.toLocaleString('ru-RU')+' ₸':'—'],
-          ['Всего часов / месяц', r.totalHours.toFixed(0)+' ч'],
-        ].map(([l,v])=>`
-          <td width="25%" style="padding:4px;">
-            <div style="padding:12px 14px;background:#F5F4F0;border-radius:8px;border:1px solid #DDDBD6;">
-              <div style="font-size:10px;color:#6B6860;margin-bottom:4px;">${l}</div>
-              <div style="font-size:14px;font-weight:700;">${v}</div>
-            </div>
-          </td>`).join('')}
-      </tr>
-    </table>
-
-    <!-- РАЗБИВКА ПО ОТДЕЛАМ -->
-    <div style="background:#fff;border:1.5px solid #DDDBD6;border-radius:10px;overflow:hidden;margin-bottom:20px;">
-      <div style="padding:9px 14px;background:#EDECEA;font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#6B6860;">РАЗБИВКА ПО ОТДЕЛАМ</div>
-      <table width="100%" style="border-collapse:collapse;">
-        ${depts.filter(d=>d.c>0).map(d=>`
-          <tr>
-            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;">
-              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${d.color};margin-right:8px;vertical-align:middle;"></span>
-              <span style="font-size:13px;vertical-align:middle;">${d.l}</span>
-              <span style="font-size:10px;color:#A09E9A;margin-left:6px;vertical-align:middle;">${d.h.toFixed(1)} ч/мес</span>
-            </td>
-            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;text-align:right;font-size:13px;font-weight:700;font-family:monospace;">${d.c.toLocaleString('ru-RU')} ₸</td>
-          </tr>`).join('')}
-        ${r.opsPerProject ? `
-          <tr>
-            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;">
-              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#999;margin-right:8px;vertical-align:middle;"></span>
-              <span style="font-size:13px;vertical-align:middle;color:#6B6860;">Операционные расходы</span>
-            </td>
-            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;text-align:right;font-size:13px;font-weight:700;font-family:monospace;">${r.opsPerProject.toLocaleString('ru-RU')} ₸</td>
-          </tr>` : ''}
-        ${r.fixedExtra ? `
-          <tr>
-            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;">
-              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#EC4899;margin-right:8px;vertical-align:middle;"></span>
-              <span style="font-size:13px;vertical-align:middle;color:#6B6860;">Доп. услуги (фиксировано)</span>
-            </td>
-            <td style="padding:9px 14px;border-bottom:1px solid #EDECEA;text-align:right;font-size:13px;font-weight:700;font-family:monospace;">${r.fixedExtra.toLocaleString('ru-RU')} ₸</td>
-          </tr>` : ''}
-        <tr style="background:#EEF2FD;">
-          <td style="padding:11px 14px;font-size:13px;font-weight:700;">Итого себестоимость</td>
-          <td style="padding:11px 14px;text-align:right;font-size:14px;font-weight:700;font-family:monospace;">${r.totalCost.toLocaleString('ru-RU')} ₸</td>
-        </tr>
-      </table>
-    </div>
-
-    <!-- ЧТО БЫЛО ВЫБРАНО -->
-    <div style="background:#fff;border:1.5px solid #DDDBD6;border-radius:10px;overflow:hidden;margin-bottom:20px;">
-      <div style="padding:9px 14px;background:#E8F5EE;font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1B8A5A;">ЧТО БЫЛО ВЫБРАНО</div>
-      <table width="100%" style="border-collapse:collapse;">
-        ${inputRowsHTML}
-      </table>
-    </div>
-
-    <!-- ФЛАГИ -->
-    ${r.flags.length ? `
-    <div style="padding:14px 16px;background:#FEF0E6;border:1.5px solid rgba(196,87,10,0.25);border-radius:8px;margin-bottom:20px;">
-      <div style="font-size:10px;font-weight:700;color:#C4570A;margin-bottom:6px;text-transform:uppercase;">⚠️ Обрати внимание</div>
-      ${r.flags.map(f=>`<div style="font-size:12px;color:#6B6860;padding:2px 0;">→ ${f}</div>`).join('')}
-    </div>` : ''}
-
-    <!-- ФУТЕР -->
-    <div style="padding-top:14px;border-top:1px solid #DDDBD6;display:flex;justify-content:space-between;font-size:10px;color:#A09E9A;">
-      <span>DISKURS · Калькулятор себестоимости</span>
-      <span>Расчёт от ${ds}</span>
-    </div>
-  `;
-
-  if (!window.html2pdf) {
-    await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+  // ── ФУТЕР ─────────────────────────────────────
+  const totalPages = doc.getNumberOfPages();
+  for (let p=1; p<=totalPages; p++) {
+    doc.setPage(p);
+    fillRect(0, PH-10, PW, 10, '#F5F4F0');
+    text('DISKURS · Калькулятор себестоимости', ML, PH-4, { size:7.5, color:'#A09E9A' });
+    text(`Расчёт от ${ds}`, PW/2, PH-4, { size:7.5, color:'#A09E9A', align:'center' });
+    text(`${p} / ${totalPages}`, PW-MR, PH-4, { size:7.5, color:'#A09E9A', align:'right' });
   }
 
   const safeName = S.projectName ? '_' + S.projectName.replace(/[^а-яёa-z0-9]/gi,'_').slice(0,20) : '';
-  const filename = `DISKURS_Расчет${safeName}_${now.toLocaleDateString('ru-RU').replace(/\./g,'-')}.pdf`;
-
-  await html2pdf().set({
-    margin: [8, 8, 8, 8],
-    filename,
-    image: { type:'jpeg', quality:0.98 },
-    html2canvas: { scale:2, useCORS:true, backgroundColor:'#ffffff' },
-    jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
-    pagebreak: { mode:'avoid-all' }
-  }).from(el).save();
+  doc.save(`DISKURS_Расчет${safeName}_${now.toLocaleDateString('ru-RU').replace(/\./g,'-')}.pdf`);
 
   btn.textContent='✅ Готово!'; btn.disabled=false;
   setTimeout(()=>btn.textContent='📄 Скачать PDF',2500);
