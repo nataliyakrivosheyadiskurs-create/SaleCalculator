@@ -404,16 +404,16 @@ body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--ink);
           <div class="num-ctrl"><button class="nbtn" onclick="dec('posts')">−</button><div class="nval" id="v_posts">10</div><button class="nbtn" onclick="inc('posts')">+</button></div>
         </div>
         <div class="num-row">
-          <div class="num-left"><div class="num-label">📱 Сторис (статика)</div><div class="num-sub">Статичные сторис для органического продвижения</div></div>
+          <div class="num-left"><div class="num-label">🎭 Посты (видео / рилсы)</div><div class="num-sub">Видеопубликации, рилсы в ленту</div></div>
+          <div class="num-ctrl"><button class="nbtn" onclick="dec('video_content')">−</button><div class="nval" id="v_video_content">5</div><button class="nbtn" onclick="inc('video_content')">+</button></div>
+        </div>
+        <div class="num-row">
+          <div class="num-left"><div class="num-label">📱 Сторис (статика)</div><div class="num-sub">Статичные сторис</div></div>
           <div class="num-ctrl"><button class="nbtn" onclick="dec('stories_static',5)">−</button><div class="nval" id="v_stories_static">60</div><button class="nbtn" onclick="inc('stories_static',5)">+</button></div>
         </div>
         <div class="num-row">
           <div class="num-left"><div class="num-label">✨ Сторис (анимация)</div><div class="num-sub">Анимированные сторис — дороже в производстве</div></div>
           <div class="num-ctrl"><button class="nbtn" onclick="dec('stories_anim')">−</button><div class="nval" id="v_stories_anim">0</div><button class="nbtn" onclick="inc('stories_anim')">+</button></div>
-        </div>
-        <div class="num-row">
-          <div class="num-left"><div class="num-label">🎭 Видео для контента (рилсы)</div><div class="num-sub">Органические видеопубликации в ленту / рилсы</div></div>
-          <div class="num-ctrl"><button class="nbtn" onclick="dec('video_content')">−</button><div class="nval" id="v_video_content">5</div><button class="nbtn" onclick="inc('video_content')">+</button></div>
         </div>
       </div>
 
@@ -883,20 +883,24 @@ function calcCost() {
   }
 
   // ── ПРОДЖЕКТ ────────────────────────────────
+  // Базовая коммуникация с клиентом (всегда)
   h.project += N('P01');
   h.project += N('P02') * 2;
   h.project += N('P03');
   h.project += N('P04') * 21;
-  h.project += N('P05') * 50;
+  h.project += N('P05') * 50; // координация команды
+
   if (hasTarget) {
-    const totalC = S.static_creatives + S.video_creatives;
-    h.project += totalC * N('P06');
-    h.project += N('P08') * 21;
-    h.project += S.video_creatives * (N('P09') + N('P11'));
+    // Работы проджекта по таргету
+    const totalCreatives = S.static_creatives + S.video_creatives;
+    h.project += totalCreatives * N('P06');   // согласование ТЗ дизайнеру
+    h.project += N('P08') * 21;               // ежедневное отслеживание кампаний
+    h.project += S.video_creatives * (N('P09') + N('P11')); // офферы + корректировки
   }
   if (hasContent) {
-    h.project += N('P07');
-    h.project += S.posts * N('P10');
+    // Работы проджекта по контенту
+    h.project += N('P07');              // SMM-стратегия
+    h.project += S.posts * N('P10');   // корректировка контентного размещения
   }
   if (S.taplink) h.project += 4;
   if (S.landing) h.project += 8;
@@ -918,7 +922,7 @@ function calcCost() {
   if (S.use_video) {
     h.video += S.shoot_days_video * N('PR01');
     h.video += S.shoot_days_video * N('PR08');
-    h.video += S.video_creatives  * N('PR09');
+    h.video += S.video_content  * N('PR09');  // цветокоррекция контентных видео
     if (S.video_location==='other_city') h.video += N('PR07');
     if (S.video_location==='onsite') h.project += S.shoot_days_video * (N('PR03') / 60);
     const shootOrg = N('P15')+N('P16')+N('P17')+N('P18')+N('P19')+N('P20');
@@ -1004,14 +1008,15 @@ function calculate() {
   const acLbl = S.adaccount==='clean'?'Чистый (без блокировок)':S.adaccount==='blocked'?'Были блокировки':'Нет аккаунта / создаём с нуля';
   const rows = [
     ['Формат работы', fmtLbl],
-    ['Рекламный аккаунт', acLbl],
-    ['Статичных креативов', S.static_creatives + ' шт'],
-    ['Видеокреативов', S.video_creatives + ' шт'],
-    ['Сценарии для таргета', `простые: ${S.scen_target_simple}, средние: ${S.scen_target_med}, сложные: ${S.scen_target_hard}`],
-    ['Постов', S.posts + ' шт'],
-    ['Сторис статика / анимация', S.stories_static + ' / ' + S.stories_anim],
-    ['Видео для контента', S.video_content + ' шт'],
-    ['Сценарии для контента', `простые: ${S.scen_content_simple}, средние: ${S.scen_content_med}, сложные: ${S.scen_content_hard}`],
+    hasTarget && ['Рекламный аккаунт', acLbl],
+    hasTarget && S.static_creatives>0 && ['Статичных креативов', S.static_creatives + ' шт'],
+    hasTarget && S.video_creatives>0  && ['Видеокреативов', S.video_creatives + ' шт'],
+    hasTarget && (S.scen_target_simple+S.scen_target_med+S.scen_target_hard)>0 && ['Сценарии для таргета', `простые: ${S.scen_target_simple}, средние: ${S.scen_target_med}, сложные: ${S.scen_target_hard}`],
+    hasContent && S.posts>0 && ['Постов (статика)', S.posts + ' шт'],
+    hasContent && S.video_content>0 && ['Постов (видео / рилсы)', S.video_content + ' шт'],
+    hasContent && S.stories_static>0 && ['Сторис (статика)', S.stories_static + ' шт'],
+    hasContent && S.stories_anim>0 && ['Сторис (анимация)', S.stories_anim + ' шт'],
+    hasContent && (S.scen_content_simple+S.scen_content_med+S.scen_content_hard)>0 && ['Сценарии для контента', `простые: ${S.scen_content_simple}, средние: ${S.scen_content_med}, сложные: ${S.scen_content_hard}`],
     ['Мобилограф', S.use_mobile ? `${S.shoot_days_mobile} дн. · ${S.mobile_location==='office'?'офис':S.mobile_location==='onsite'?'выезд':'другой город'}` : 'не нужен'],
     ['Видеограф', S.use_video ? `${S.shoot_days_video} дн. · ${S.video_location==='office'?'офис':S.video_location==='onsite'?'выезд':'другой город'}` : 'не нужен'],
     ['Сложность монтажа', S.montage_quality==='good'?'Хорошие исходники':S.montage_quality==='bad'?'Плохие исходники':'Сложный монтаж'],
@@ -1245,10 +1250,10 @@ async function exportPDF() {
       hasTarget && S.context  && ['Контекстная реклама', 'Да'],
       hasTarget && S.analytics && ['Сквозная аналитика', S.analytics_type==='basic'?'Базовая':'Dashboard (+100 000 T)'],
       hasTarget && S.lang_kz  && ['Реклама на казахском', 'Да'],
-      hasContent && S.posts>0           && ['Постов', S.posts+' шт'],
+      hasContent && S.posts>0           && ['Постов (статика)', S.posts+' шт'],
+      hasContent && S.video_content>0   && ['Постов (видео/рилсы)', S.video_content+' шт'],
       hasContent && S.stories_static>0  && ['Сторис (статика)', S.stories_static+' шт'],
       hasContent && S.stories_anim>0    && ['Сторис (анимация)', S.stories_anim+' шт'],
-      hasContent && S.video_content>0   && ['Видео для контента', S.video_content+' шт'],
       hasContent && (S.scen_content_simple+S.scen_content_med+S.scen_content_hard>0) &&
         ['Сценарии контентщика', 'prost:'+S.scen_content_simple+' sred:'+S.scen_content_med+' slozh:'+S.scen_content_hard],
       S.use_mobile && ['Мобилограф', S.shoot_days_mobile+' дн. / '+(S.mobile_location==='office'?'офис':S.mobile_location==='onsite'?'выезд':'другой город')],
